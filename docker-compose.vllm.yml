@@ -1,0 +1,20 @@
+services:
+  vllm:
+    image: vllm/vllm-openai:latest
+    ports:
+      - "8001:8000"
+    volumes:
+      - ${VLLM_MODEL_PATH}:/models
+    command: >
+      --model /models/${VLLM_MODEL_NAME}
+      --tensor-parallel-size ${VLLM_TENSOR_PARALLEL:-1}
+      --max-model-len ${VLLM_MAX_MODEL_LEN:-32768}
+      --gpu-memory-utilization 0.90
+      --served-model-name ${VLLM_SERVED_MODEL_NAME:-chatbi-sql}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
