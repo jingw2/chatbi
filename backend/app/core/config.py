@@ -1,0 +1,52 @@
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+
+    # Infrastructure
+    postgres_db: str = "chatbi"
+    postgres_user: str = "chatbi"
+    postgres_password: str = "chatbi"
+    redis_password: str = "chatbi"
+
+    # Security
+    secret_key: str = "dev_secret_key_change_in_production"
+    encryption_key: str = "dev_encryption_key_32chars_padding"
+    access_token_expire_minutes: int = 30
+    refresh_token_expire_days: int = 7
+
+    # LLM — Intent Model
+    intent_model_provider: str = "openai_compatible"
+    intent_model_base_url: str = ""
+    intent_model_name: str = "Qwen2.5-7B-Instruct"
+    intent_model_api_key: str = "none"
+
+    # LLM — Text-to-SQL Model
+    text_to_sql_provider: str = "openai_compatible"
+    text_to_sql_base_url: str = ""
+    text_to_sql_model_name: str = "Qwen2.5-Coder-32B-Instruct"
+    text_to_sql_api_key: str = "none"
+
+    # LLM — Base Model
+    base_model_provider: str = "anthropic"
+    base_model_api_key: str = "none"
+    base_model_name: str = "claude-sonnet-4-6"
+    base_model_base_url: str = ""
+
+    @property
+    def database_url(self) -> str:
+        return (
+            f"postgresql+asyncpg://{self.postgres_user}:"
+            f"{self.postgres_password}@postgres/{self.postgres_db}"
+        )
+
+    @property
+    def database_url_sync(self) -> str:
+        return (
+            f"postgresql://{self.postgres_user}:"
+            f"{self.postgres_password}@postgres/{self.postgres_db}"
+        )
+
+
+settings = Settings()
