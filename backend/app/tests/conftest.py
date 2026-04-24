@@ -1,3 +1,4 @@
+import asyncio
 import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
@@ -6,6 +7,14 @@ from app.main import app
 from app.core.database import Base, get_db
 
 TEST_DATABASE_URL = "postgresql+asyncpg://chatbi:chatbi@localhost/chatbi_test"
+
+
+@pytest.fixture(scope="session")
+def event_loop():
+    """Session-scoped event loop so session-scoped async fixtures work."""
+    loop = asyncio.new_event_loop()
+    yield loop
+    loop.close()
 
 
 @pytest_asyncio.fixture(scope="session")
