@@ -107,3 +107,21 @@ async def test_delete_datasource_requires_superadmin(client: AsyncClient, db_ses
         headers=auth_header(admin.id, "admin"),
     )
     assert response.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_delete_datasource_not_found(client: AsyncClient, db_session):
+    superadmin = User(
+        email="sa_delete@example.com",
+        hashed_password=hash_password("pass"),
+        role=UserRole.superadmin,
+    )
+    db_session.add(superadmin)
+    await db_session.commit()
+    await db_session.refresh(superadmin)
+
+    response = await client.delete(
+        "/api/v1/datasources/999999",
+        headers=auth_header(superadmin.id, "superadmin"),
+    )
+    assert response.status_code == 404
