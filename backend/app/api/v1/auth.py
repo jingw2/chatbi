@@ -15,7 +15,16 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(User).where(User.email == body.email))
     user = result.scalar_one_or_none()
-    if not user or not verify_password(body.password, user.hashed_password):
+
+    # Always run verify_password to prevent user-enumeration timing attack.
+    # Use a dummy hash when user is not found so bcrypt still does the work.
+    _DUMMY_HASH = "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxn96p36LjZ0rvdddQ74BqGkiGgum"
+    password_valid = verify_password(
+        body.password,
+        user.hashed_password if user else _DUMMY_HASH,
+    )
+
+    if not user or not password_valid:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
