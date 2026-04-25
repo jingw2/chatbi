@@ -9,6 +9,9 @@ class AnthropicProvider(LLMProvider):
     role. This provider extracts any system-role messages from the messages list
     and passes them via the `system` kwarg. If no system message is present,
     the `system` kwarg is omitted entirely (Anthropic rejects system="").
+
+    Returns the text of the first content block; assumes a text-only response.
+    Returns '' if content list is empty.
     """
 
     def __init__(self, model: str, api_key: str, base_url: str | None = None):
@@ -39,4 +42,4 @@ class AnthropicProvider(LLMProvider):
             create_kwargs["system"] = "\n\n".join(system_parts)
 
         response = await self.client.messages.create(**create_kwargs)
-        return response.content[0].text
+        return response.content[0].text if response.content else ""

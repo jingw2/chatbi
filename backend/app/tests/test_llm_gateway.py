@@ -208,3 +208,35 @@ class TestAnthropicProvider:
             AnthropicProvider(model="claude-sonnet-4-6", api_key="sk-ant", base_url=None)
             _, init_kwargs = MockCls.call_args
         assert "base_url" not in init_kwargs
+
+    @pytest.mark.asyncio
+    async def test_complete_empty_content_returns_empty_string(self):
+        with patch("app.llm_gateway.anthropic_provider.AsyncAnthropic") as MockCls:
+            mock_client = MagicMock()
+            MockCls.return_value = mock_client
+            mock_client.messages.create = AsyncMock(
+                return_value=MagicMock(content=[])
+            )
+            from app.llm_gateway.anthropic_provider import AnthropicProvider
+            provider = AnthropicProvider(model="claude-sonnet-4-6", api_key="sk-ant")
+            result = await provider.complete([{"role": "user", "content": "hi"}])
+        assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_multiple_system_messages_joined_with_double_newline(self):
+        with patch("app.llm_gateway.anthropic_provider.AsyncAnthropic") as MockCls:
+            mock_client = MagicMock()
+            MockCls.return_value = mock_client
+            mock_client.messages.create = AsyncMock(
+                return_value=MagicMock(content=[MagicMock(text="ok")])
+            )
+            from app.llm_gateway.anthropic_provider import AnthropicProvider
+            provider = AnthropicProvider(model="claude-sonnet-4-6", api_key="sk-ant")
+            await provider.complete([
+                {"role": "system", "content": "Be concise"},
+                {"role": "system", "content": "Use metric units"},
+                {"role": "user", "content": "Tell me the distance"},
+            ])
+            call_kwargs = mock_client.messages.create.call_args.kwargs
+        assert call_kwargs["system"] == "Be concise\n\nUse metric units"
+        assert call_kwargs["messages"] == [{"role": "user", "content": "Tell me the distance"}]
