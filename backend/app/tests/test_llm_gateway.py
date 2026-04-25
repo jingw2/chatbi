@@ -127,3 +127,84 @@ class TestOpenAIProvider:
             )
             _, init_kwargs = MockCls.call_args
         assert init_kwargs.get("base_url") == "http://vllm:8001/v1"
+
+
+# ── AnthropicProvider ──────────────────────────────────────────────────────────
+
+class TestAnthropicProvider:
+    @pytest.mark.asyncio
+    async def test_complete_returns_first_content_text(self):
+        with patch("app.llm_gateway.anthropic_provider.AsyncAnthropic") as MockCls:
+            mock_client = MagicMock()
+            MockCls.return_value = mock_client
+            mock_client.messages.create = AsyncMock(
+                return_value=MagicMock(
+                    content=[MagicMock(text="Sales dropped 10%")]
+                )
+            )
+            from app.llm_gateway.anthropic_provider import AnthropicProvider
+            provider = AnthropicProvider(model="claude-sonnet-4-6", api_key="sk-ant")
+            result = await provider.complete([{"role": "user", "content": "Analyze"}])
+        assert result == "Sales dropped 10%"
+
+    @pytest.mark.asyncio
+    async def test_system_message_extracted_and_passed_as_system_param(self):
+        with patch("app.llm_gateway.anthropic_provider.AsyncAnthropic") as MockCls:
+            mock_client = MagicMock()
+            MockCls.return_value = mock_client
+            mock_client.messages.create = AsyncMock(
+                return_value=MagicMock(content=[MagicMock(text="ok")])
+            )
+            from app.llm_gateway.anthropic_provider import AnthropicProvider
+            provider = AnthropicProvider(model="claude-sonnet-4-6", api_key="sk-ant")
+            await provider.complete([
+                {"role": "system", "content": "You are a BI analyst"},
+                {"role": "user", "content": "Summarize sales"},
+            ])
+            call_kwargs = mock_client.messages.create.call_args.kwargs
+        assert call_kwargs["system"] == "You are a BI analyst"
+        assert call_kwargs["messages"] == [{"role": "user", "content": "Summarize sales"}]
+
+    @pytest.mark.asyncio
+    async def test_no_system_message_omits_system_kwarg(self):
+        with patch("app.llm_gateway.anthropic_provider.AsyncAnthropic") as MockCls:
+            mock_client = MagicMock()
+            MockCls.return_value = mock_client
+            mock_client.messages.create = AsyncMock(
+                return_value=MagicMock(content=[MagicMock(text="ok")])
+            )
+            from app.llm_gateway.anthropic_provider import AnthropicProvider
+            provider = AnthropicProvider(model="claude-sonnet-4-6", api_key="sk-ant")
+            await provider.complete([{"role": "user", "content": "Hello"}])
+            call_kwargs = mock_client.messages.create.call_args.kwargs
+        assert "system" not in call_kwargs
+
+    @pytest.mark.asyncio
+    async def test_custom_base_url_passed_to_client_constructor(self):
+        with patch("app.llm_gateway.anthropic_provider.AsyncAnthropic") as MockCls:
+            mock_client = MagicMock()
+            MockCls.return_value = mock_client
+            mock_client.messages.create = AsyncMock(
+                return_value=MagicMock(content=[MagicMock(text="ok")])
+            )
+            from app.llm_gateway.anthropic_provider import AnthropicProvider
+            AnthropicProvider(
+                model="claude-sonnet-4-6",
+                api_key="sk-ant",
+                base_url="http://my-proxy/anthropic",
+            )
+            _, init_kwargs = MockCls.call_args
+        assert init_kwargs.get("base_url") == "http://my-proxy/anthropic"
+
+    @pytest.mark.asyncio
+    async def test_no_base_url_does_not_pass_base_url_kwarg(self):
+        with patch("app.llm_gateway.anthropic_provider.AsyncAnthropic") as MockCls:
+            mock_client = MagicMock()
+            MockCls.return_value = mock_client
+            mock_client.messages.create = AsyncMock(
+                return_value=MagicMock(content=[MagicMock(text="ok")])
+            )
+            from app.llm_gateway.anthropic_provider import AnthropicProvider
+            AnthropicProvider(model="claude-sonnet-4-6", api_key="sk-ant", base_url=None)
+            _, init_kwargs = MockCls.call_args
+        assert "base_url" not in init_kwargs
