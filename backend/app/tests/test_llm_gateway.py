@@ -34,3 +34,96 @@ class TestBuildProvider:
         from app.llm_gateway.base import build_provider
         with pytest.raises(ValueError, match="Unknown provider type"):
             build_provider("gemini", "gemini-pro", "key", "")
+
+
+# ── OpenAIProvider ─────────────────────────────────────────────────────────────
+
+class TestOpenAIProvider:
+    @pytest.mark.asyncio
+    async def test_complete_returns_message_content(self):
+        with patch("app.llm_gateway.openai_provider.AsyncOpenAI") as MockCls:
+            mock_client = MagicMock()
+            MockCls.return_value = mock_client
+            mock_client.chat.completions.create = AsyncMock(
+                return_value=MagicMock(
+                    choices=[MagicMock(message=MagicMock(content="SELECT 1"))]
+                )
+            )
+            from app.llm_gateway.openai_provider import OpenAIProvider
+            provider = OpenAIProvider(model="gpt-4o", api_key="sk-key")
+            result = await provider.complete([{"role": "user", "content": "Write SQL"}])
+        assert result == "SELECT 1"
+
+    @pytest.mark.asyncio
+    async def test_complete_uses_configured_model_name(self):
+        with patch("app.llm_gateway.openai_provider.AsyncOpenAI") as MockCls:
+            mock_client = MagicMock()
+            MockCls.return_value = mock_client
+            mock_client.chat.completions.create = AsyncMock(
+                return_value=MagicMock(
+                    choices=[MagicMock(message=MagicMock(content="ok"))]
+                )
+            )
+            from app.llm_gateway.openai_provider import OpenAIProvider
+            provider = OpenAIProvider(
+                model="Qwen2.5-Coder-32B-Instruct",
+                api_key="none",
+                base_url="http://vllm:8001/v1",
+            )
+            await provider.complete([{"role": "user", "content": "hi"}])
+            call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert call_kwargs["model"] == "Qwen2.5-Coder-32B-Instruct"
+
+    @pytest.mark.asyncio
+    async def test_complete_passes_messages_verbatim(self):
+        with patch("app.llm_gateway.openai_provider.AsyncOpenAI") as MockCls:
+            mock_client = MagicMock()
+            MockCls.return_value = mock_client
+            mock_client.chat.completions.create = AsyncMock(
+                return_value=MagicMock(
+                    choices=[MagicMock(message=MagicMock(content="ok"))]
+                )
+            )
+            from app.llm_gateway.openai_provider import OpenAIProvider
+            provider = OpenAIProvider(model="gpt-4o", api_key="sk-key")
+            msgs = [
+                {"role": "system", "content": "You are a SQL expert"},
+                {"role": "user", "content": "Write a query"},
+            ]
+            await provider.complete(msgs)
+            call_kwargs = mock_client.chat.completions.create.call_args.kwargs
+        assert call_kwargs["messages"] == msgs
+
+    @pytest.mark.asyncio
+    async def test_complete_none_content_returns_empty_string(self):
+        with patch("app.llm_gateway.openai_provider.AsyncOpenAI") as MockCls:
+            mock_client = MagicMock()
+            MockCls.return_value = mock_client
+            mock_client.chat.completions.create = AsyncMock(
+                return_value=MagicMock(
+                    choices=[MagicMock(message=MagicMock(content=None))]
+                )
+            )
+            from app.llm_gateway.openai_provider import OpenAIProvider
+            provider = OpenAIProvider(model="gpt-4o", api_key="sk-key")
+            result = await provider.complete([{"role": "user", "content": "hi"}])
+        assert result == ""
+
+    @pytest.mark.asyncio
+    async def test_base_url_passed_to_client(self):
+        with patch("app.llm_gateway.openai_provider.AsyncOpenAI") as MockCls:
+            mock_client = MagicMock()
+            MockCls.return_value = mock_client
+            mock_client.chat.completions.create = AsyncMock(
+                return_value=MagicMock(
+                    choices=[MagicMock(message=MagicMock(content="ok"))]
+                )
+            )
+            from app.llm_gateway.openai_provider import OpenAIProvider
+            OpenAIProvider(
+                model="Qwen2.5-7B-Instruct",
+                api_key="none",
+                base_url="http://vllm:8001/v1",
+            )
+            _, init_kwargs = MockCls.call_args
+        assert init_kwargs.get("base_url") == "http://vllm:8001/v1"
