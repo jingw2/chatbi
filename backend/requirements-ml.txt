@@ -1,0 +1,4 @@
+# ML / Embedding dependencies — installed in Plan 3 (Schema Manager + Embedding Pipeline)
+# These bring in PyTorch + transformers (~2 GB), so kept separate from core requirements.
+-r requirements.txt
+FlagEmbedding==1.2.10

@@ -4,7 +4,8 @@ from app.models.user import UserRole
 
 class UserResponse(BaseModel):
     id: int
-    email: EmailStr
+    # str (not EmailStr) so internal .local / non-standard domains round-trip cleanly
+    email: str
     role: UserRole
     is_active: bool
 
@@ -12,6 +13,7 @@ class UserResponse(BaseModel):
 
 
 class UserCreate(BaseModel):
+    # EmailStr validates proper format at creation time
     email: EmailStr
     password: str
     role: UserRole = UserRole.viewer

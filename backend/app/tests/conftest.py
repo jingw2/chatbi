@@ -1,26 +1,19 @@
-import asyncio
-import pytest
 import pytest_asyncio
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from app.main import app
 from app.core.database import Base, get_db
 
-TEST_DATABASE_URL = "postgresql+asyncpg://chatbi:chatbi@localhost/chatbi_test"
+# Connect to the running Postgres service (inside Docker compose network)
+TEST_DATABASE_URL = "postgresql+asyncpg://chatbi:chatbi_dev_pass@postgres/chatbi"
 
 
-@pytest.fixture(scope="session")
-def event_loop():
-    """Session-scoped event loop so session-scoped async fixtures work."""
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
-
-
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture
 async def test_engine():
+    """Create tables fresh for each test function, tear down after."""
     engine = create_async_engine(TEST_DATABASE_URL, echo=False)
     async with engine.begin() as conn:
+        await conn.run_sync(Base.metadata.drop_all)
         await conn.run_sync(Base.metadata.create_all)
     yield engine
     async with engine.begin() as conn:

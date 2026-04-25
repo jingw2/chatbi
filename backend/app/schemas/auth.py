@@ -2,7 +2,9 @@ from pydantic import BaseModel, EmailStr
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    # Use str (not EmailStr) — login looks up by email string, no re-validation needed.
+    # EmailStr validation happens at user-creation time (UserCreate schema).
+    email: str
     password: str
 
 
