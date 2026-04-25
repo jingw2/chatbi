@@ -240,3 +240,112 @@ class TestAnthropicProvider:
             call_kwargs = mock_client.messages.create.call_args.kwargs
         assert call_kwargs["system"] == "Be concise\n\nUse metric units"
         assert call_kwargs["messages"] == [{"role": "user", "content": "Tell me the distance"}]
+
+
+# ── _messages helper ───────────────────────────────────────────────────────────
+
+class TestMessagesHelper:
+    def test_user_only_produces_single_user_message(self):
+        from app.llm_gateway.gateway import _messages
+        result = _messages(None, "hello")
+        assert result == [{"role": "user", "content": "hello"}]
+
+    def test_system_plus_user_produces_two_messages_in_order(self):
+        from app.llm_gateway.gateway import _messages
+        result = _messages("Be concise", "hello")
+        assert result == [
+            {"role": "system", "content": "Be concise"},
+            {"role": "user", "content": "hello"},
+        ]
+
+    def test_empty_system_omits_system_message(self):
+        from app.llm_gateway.gateway import _messages
+        result = _messages("", "hello")
+        assert result == [{"role": "user", "content": "hello"}]
+
+
+# ── LLMGateway ────────────────────────────────────────────────────────────────
+
+class TestLLMGateway:
+    def _mock_provider(self, return_value: str):
+        provider = MagicMock()
+        provider.complete = AsyncMock(return_value=return_value)
+        return provider
+
+    @pytest.mark.asyncio
+    async def test_intent_delegates_to_intent_provider(self):
+        from app.llm_gateway.gateway import LLMGateway
+        intent_p = self._mock_provider("data_query")
+        gw = LLMGateway(
+            intent_provider=intent_p,
+            text_to_sql_provider=self._mock_provider(""),
+            base_provider=self._mock_provider(""),
+        )
+        result = await gw.intent("上周华东区出库量")
+        assert result == "data_query"
+        intent_p.complete.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_text_to_sql_delegates_to_sql_provider(self):
+        from app.llm_gateway.gateway import LLMGateway
+        sql_p = self._mock_provider("SELECT * FROM orders WHERE region = '华东'")
+        gw = LLMGateway(
+            intent_provider=self._mock_provider(""),
+            text_to_sql_provider=sql_p,
+            base_provider=self._mock_provider(""),
+        )
+        result = await gw.text_to_sql("上周出库量 for 华东")
+        assert result == "SELECT * FROM orders WHERE region = '华东'"
+        sql_p.complete.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_base_delegates_to_base_provider(self):
+        from app.llm_gateway.gateway import LLMGateway
+        base_p = self._mock_provider("Sales in 华东 dropped 10% week-over-week.")
+        gw = LLMGateway(
+            intent_provider=self._mock_provider(""),
+            text_to_sql_provider=self._mock_provider(""),
+            base_provider=base_p,
+        )
+        result = await gw.base("生成洞察", system="You are a BI analyst")
+        assert result == "Sales in 华东 dropped 10% week-over-week."
+        base_p.complete.assert_called_once()
+
+    @pytest.mark.asyncio
+    async def test_system_prompt_prepended_to_messages(self):
+        from app.llm_gateway.gateway import LLMGateway
+        intent_p = self._mock_provider("data_query")
+        gw = LLMGateway(
+            intent_provider=intent_p,
+            text_to_sql_provider=self._mock_provider(""),
+            base_provider=self._mock_provider(""),
+        )
+        await gw.intent("question", system="Classify the intent")
+        messages_arg = intent_p.complete.call_args.args[0]
+        assert messages_arg[0] == {"role": "system", "content": "Classify the intent"}
+        assert messages_arg[1] == {"role": "user", "content": "question"}
+
+    @pytest.mark.asyncio
+    async def test_each_role_uses_independent_provider(self):
+        from app.llm_gateway.gateway import LLMGateway
+        intent_p = self._mock_provider("intent_result")
+        sql_p = self._mock_provider("sql_result")
+        base_p = self._mock_provider("base_result")
+        gw = LLMGateway(
+            intent_provider=intent_p,
+            text_to_sql_provider=sql_p,
+            base_provider=base_p,
+        )
+        i = await gw.intent("q")
+        s = await gw.text_to_sql("q")
+        b = await gw.base("q")
+        assert i == "intent_result"
+        assert s == "sql_result"
+        assert b == "base_result"
+        intent_p.complete.assert_called_once()
+        sql_p.complete.assert_called_once()
+        base_p.complete.assert_called_once()
+
+    def test_singleton_is_llmgateway_instance(self):
+        from app.llm_gateway import llm_gateway, LLMGateway
+        assert isinstance(llm_gateway, LLMGateway)
