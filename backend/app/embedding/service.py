@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import numpy as np
+
 try:
     from FlagEmbedding import FlagModel, FlagReranker  # type: ignore[import]
 except Exception:
@@ -47,12 +49,17 @@ class EmbeddingService:
 
     def embed(self, texts: list[str]) -> list[list[float]]:
         """Embed texts using bge-m3. Returns list of 1024-dim vectors."""
+        if not texts:
+            return []
         model = self._get_model()
         vectors = model.encode(texts, batch_size=12, max_length=8192)
         return vectors.tolist()
 
     def rerank(self, query: str, passages: list[str]) -> list[float]:
         """Rerank passages by relevance to query. Returns normalized scores (0-1)."""
+        if not passages:
+            return []
         reranker = self._get_reranker()
         pairs = [[query, p] for p in passages]
-        return reranker.compute_score(pairs, normalize=True)
+        scores = reranker.compute_score(pairs, normalize=True)
+        return np.atleast_1d(scores).tolist()

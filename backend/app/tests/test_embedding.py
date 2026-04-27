@@ -70,3 +70,10 @@ class TestEmbeddingService:
             MockReranker.assert_not_called()
             svc.rerank("q", ["p"])
             MockReranker.assert_called_once()
+
+    def test_embed_raises_import_error_when_flag_model_none(self):
+        with patch("app.embedding.service.FlagModel", None):
+            from app.embedding.service import EmbeddingService
+            svc = EmbeddingService()
+            with pytest.raises(ImportError, match="FlagEmbedding is not installed"):
+                svc.embed(["text"])
