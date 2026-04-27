@@ -34,6 +34,13 @@ class Settings(BaseSettings):
     base_model_name: str = "claude-sonnet-4-6"
     base_model_base_url: str = ""
 
+    # Qdrant
+    qdrant_url: str = "http://qdrant:6333"
+
+    # Embedding models (FlagEmbedding — installed via requirements-ml.txt)
+    embedding_model_name: str = "BAAI/bge-m3"
+    reranker_model_name: str = "BAAI/bge-reranker-v2-m3"
+
     @property
     def database_url(self) -> str:
         return (
