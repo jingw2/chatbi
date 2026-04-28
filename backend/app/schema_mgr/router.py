@@ -1,4 +1,5 @@
 from __future__ import annotations
+import asyncio
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -12,7 +13,7 @@ from app.schemas.schema_mgr import (
     TableUpdate,
     ColumnResponse,
     ColumnUpdate,
-    SyncResponse,
+    SyncResponse,  # noqa: F401 — used in Task 4's sync endpoint
 )
 from app.api.deps import require_role
 from app.embedding import embedding_service
@@ -101,16 +102,23 @@ async def update_column(
     if body.notes is not None:
         col.notes = body.notes
 
-    # Re-embed this column in Qdrant whenever annotations change
+    # Assign embedding_id before commit so it's persisted
+    if col.embedding_id is None:
+        col.embedding_id = str(uuid.uuid4())
+
+    await db.commit()
+    await db.refresh(col)
+
+    # Re-embed in Qdrant after the DB commit succeeds
     table_result = await db.execute(
         select(SchemaTable).where(SchemaTable.id == col.table_id)
     )
     table = table_result.scalar_one_or_none()
     if table is not None:
         text = _column_text(table.table_name, col)
-        vector = embedding_service.embed([text])[0]
-        if col.embedding_id is None:
-            col.embedding_id = str(uuid.uuid4())
+        vector = await asyncio.get_event_loop().run_in_executor(
+            None, lambda: embedding_service.embed([text])[0]
+        )
         await qdrant_store.ensure_collection(_SCHEMA_COLLECTION)
         await qdrant_store.upsert(
             _SCHEMA_COLLECTION,
@@ -130,7 +138,11 @@ async def update_column(
                 }
             ],
         )
+    else:
+        import logging
+        logging.getLogger(__name__).warning(
+            "update_column: table not found for col_id=%s table_id=%s — skipping Qdrant upsert",
+            col.id, col.table_id,
+        )
 
-    await db.commit()
-    await db.refresh(col)
     return col
