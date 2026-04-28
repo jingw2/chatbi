@@ -1,5 +1,6 @@
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
+from qdrant_client.models import PointIdsList
 
 
 class TestQdrantStore:
@@ -87,7 +88,11 @@ class TestQdrantStore:
             )
 
         call_kwargs = mock_client.search.call_args.kwargs
-        assert call_kwargs["query_filter"] is not None
+        query_filter = call_kwargs["query_filter"]
+        assert query_filter is not None
+        assert len(query_filter.must) == 1
+        assert query_filter.must[0].key == "datasource_id"
+        assert query_filter.must[0].match.value == 42
 
     @pytest.mark.asyncio
     async def test_delete_passes_ids_to_client(self):
@@ -102,3 +107,4 @@ class TestQdrantStore:
         mock_client.delete.assert_called_once()
         call_kwargs = mock_client.delete.call_args.kwargs
         assert call_kwargs["collection_name"] == "knowledge_items"
+        assert call_kwargs["points_selector"].points == ["uuid-1", "uuid-2"]

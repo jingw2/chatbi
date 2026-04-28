@@ -31,18 +31,26 @@ class QdrantStore:
         response = await self._client.get_collections()
         existing = {c.name for c in response.collections}
         if name not in existing:
-            await self._client.create_collection(
-                collection_name=name,
-                vectors_config=VectorParams(
-                    size=self.EMBEDDING_DIM,
-                    distance=Distance.COSINE,
-                ),
-            )
+            try:
+                await self._client.create_collection(
+                    collection_name=name,
+                    vectors_config=VectorParams(
+                        size=self.EMBEDDING_DIM,
+                        distance=Distance.COSINE,
+                    ),
+                )
+            except Exception:
+                # Collection may have been created by a concurrent worker — that's fine
+                pass
 
     async def upsert(self, collection: str, points: list[dict]) -> None:
         """Upsert embedding points.
-        Each point dict: {"id": str, "vector": list[float], "payload": dict}
+
+        Each point dict: {"id": str (UUID), "vector": list[float], "payload": dict}
+        IDs must be valid UUID strings (e.g. str(uuid.uuid4())).
         """
+        if not points:
+            return
         qdrant_points = [
             PointStruct(id=p["id"], vector=p["vector"], payload=p["payload"])
             for p in points
@@ -81,7 +89,7 @@ class QdrantStore:
         ]
 
     async def delete(self, collection: str, ids: list[str]) -> None:
-        """Delete points by their string IDs."""
+        """Delete points by their UUID string IDs."""
         await self._client.delete(
             collection_name=collection,
             points_selector=PointIdsList(points=ids),
