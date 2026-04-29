@@ -53,8 +53,11 @@ async def create_knowledge(
         created_by=current_user.id,
     )
     db.add(item)
-    await db.flush()  # get item.id before embedding
+    await db.flush()  # get item.id before commit
+    await db.commit()
+    await db.refresh(item)
 
+    # Embed and upsert to Qdrant after DB commit succeeds (commit-before-Qdrant ordering)
     vector = await asyncio.get_running_loop().run_in_executor(
         None, lambda: embedding_service.embed([_item_text(item)])[0]
     )
@@ -75,8 +78,6 @@ async def create_knowledge(
         ],
     )
 
-    await db.commit()
-    await db.refresh(item)
     return item
 
 

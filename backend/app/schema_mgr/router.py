@@ -120,7 +120,7 @@ async def update_column(
     table = table_result.scalar_one_or_none()
     if table is not None:
         text = _column_text(table.table_name, col)
-        vector = await asyncio.get_event_loop().run_in_executor(
+        vector = await asyncio.get_running_loop().run_in_executor(
             None, lambda: embedding_service.embed([text])[0]
         )
         await qdrant_store.ensure_collection(_SCHEMA_COLLECTION)
