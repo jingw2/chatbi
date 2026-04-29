@@ -1,5 +1,6 @@
 from __future__ import annotations
 import asyncio
+import logging
 import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -139,7 +140,6 @@ async def update_column(
             ],
         )
     else:
-        import logging
         logging.getLogger(__name__).warning(
             "update_column: table not found for col_id=%s table_id=%s — skipping Qdrant upsert",
             col.id, col.table_id,
