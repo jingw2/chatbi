@@ -14,8 +14,11 @@ from app.schemas.schema_mgr import (
     TableUpdate,
     ColumnResponse,
     ColumnUpdate,
-    SyncResponse,  # noqa: F401 — used in Task 4's sync endpoint
+    SyncResponse,
 )
+from app.models.datasource import Datasource
+from app.core.encryption import decrypt
+from app.schema_mgr.introspect import introspect_postgres, check_db_type_supported
 from app.api.deps import require_role
 from app.embedding import embedding_service
 from app.qdrant_store import qdrant_store
@@ -146,3 +149,118 @@ async def update_column(
         )
 
     return col
+
+
+@router.post("/{datasource_id}/sync", response_model=SyncResponse)
+async def sync_schema(
+    datasource_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_role(*_admin_roles)),
+):
+    """Introspect the datasource DB, upsert schema into Postgres, embed into Qdrant."""
+    ds_result = await db.execute(
+        select(Datasource).where(Datasource.id == datasource_id)
+    )
+    ds = ds_result.scalar_one_or_none()
+    if ds is None:
+        raise HTTPException(status_code=404, detail="Datasource not found")
+
+    try:
+        check_db_type_supported(ds.db_type)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    password = decrypt(ds.readonly_encrypted_password)
+    raw_tables = await introspect_postgres(
+        host=ds.host,
+        port=ds.port,
+        database=ds.database,
+        username=ds.readonly_user,
+        password=password,
+    )
+
+    tables_synced = 0
+    columns_synced = 0
+    texts_to_embed: list[str] = []
+    cols_to_embed: list[SchemaColumn] = []
+    table_name_map: dict[int, str] = {}
+
+    for raw_table in raw_tables:
+        tbl_result = await db.execute(
+            select(SchemaTable).where(
+                SchemaTable.datasource_id == datasource_id,
+                SchemaTable.table_name == raw_table["table_name"],
+            )
+        )
+        tbl = tbl_result.scalar_one_or_none()
+        if tbl is None:
+            tbl = SchemaTable(
+                datasource_id=datasource_id,
+                table_name=raw_table["table_name"],
+                is_active=True,
+            )
+            db.add(tbl)
+            await db.flush()  # get tbl.id
+        tables_synced += 1
+
+        for raw_col in raw_table["columns"]:
+            col_result = await db.execute(
+                select(SchemaColumn).where(
+                    SchemaColumn.table_id == tbl.id,
+                    SchemaColumn.column_name == raw_col["column_name"],
+                )
+            )
+            col = col_result.scalar_one_or_none()
+            if col is None:
+                col = SchemaColumn(
+                    table_id=tbl.id,
+                    column_name=raw_col["column_name"],
+                    data_type=raw_col["data_type"],
+                )
+                db.add(col)
+                await db.flush()
+            else:
+                col.data_type = raw_col["data_type"]
+            columns_synced += 1
+
+            if col.embedding_id is None:
+                col.embedding_id = str(uuid.uuid4())
+            texts_to_embed.append(_column_text(raw_table["table_name"], col))
+            cols_to_embed.append(col)
+            table_name_map[col.id] = raw_table["table_name"]
+
+    await db.commit()
+
+    # Batch embed and upsert to Qdrant
+    embeddings_queued = 0
+    if texts_to_embed:
+        vectors = await asyncio.get_running_loop().run_in_executor(
+            None, lambda: embedding_service.embed(texts_to_embed)
+        )
+        await qdrant_store.ensure_collection(_SCHEMA_COLLECTION)
+        await qdrant_store.upsert(
+            _SCHEMA_COLLECTION,
+            [
+                {
+                    "id": col.embedding_id,
+                    "vector": vectors[i],
+                    "payload": {
+                        "datasource_id": datasource_id,
+                        "table_id": col.table_id,
+                        "column_id": col.id,
+                        "table_name": table_name_map[col.id],
+                        "column_name": col.column_name,
+                        "data_type": col.data_type,
+                        "description": col.description,
+                    },
+                }
+                for i, col in enumerate(cols_to_embed)
+            ],
+        )
+        embeddings_queued = len(texts_to_embed)
+
+    return SyncResponse(
+        tables_synced=tables_synced,
+        columns_synced=columns_synced,
+        embeddings_queued=embeddings_queued,
+    )
