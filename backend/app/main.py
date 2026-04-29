@@ -1,7 +1,9 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from app.api.v1.router import api_router
-import app.llm_gateway  # noqa: F401 — triggers singleton creation at startup
+import app.llm_gateway   # noqa: F401 — triggers singleton creation at startup
+import app.embedding     # noqa: F401 — initialises EmbeddingService singleton
+import app.qdrant_store  # noqa: F401 — initialises QdrantStore singleton
 
 app = FastAPI(title="ChatBI API", version="0.1.0")
 
