@@ -35,6 +35,7 @@ class QueryResponse(BaseModel):
     columns: list[str]
     rows: list[list]
     chart_type: str | None
+    chart_config: dict | None
     insight: str | None
     suggestions: list[str]
     warnings: list[str]

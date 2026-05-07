@@ -147,6 +147,7 @@ class TestRunPipeline:
         assert result.columns == ["region", "total_qty"]
         assert len(result.rows) == 2
         assert result.chart_type is not None
+        assert result.chart_config is not None
         assert result.insight is not None
         assert result.error is None
         assert result.execution_ms == 42

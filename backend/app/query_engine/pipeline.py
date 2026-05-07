@@ -19,6 +19,7 @@ from app.query_engine.rls import inject_rls
 from app.query_engine.executor import execute_query
 from app.query_engine.result_processor import sanitize_for_llm, check_result_anomalies
 from app.viz.infer import infer_chart_type
+from app.viz.config import build_chart_config
 
 _VALID_INTENTS = {"data_query", "definition", "clarify", "fixed_workflow", "chitchat"}
 
@@ -47,6 +48,7 @@ class PipelineResult:
     columns: list[str]
     rows: list[list]
     chart_type: str | None
+    chart_config: dict | None
     insight: str | None
     suggestions: list[str]
     error: str | None
@@ -83,7 +85,7 @@ async def run_pipeline(
     if intent != "data_query":
         return PipelineResult(
             intent=intent, sql=None, columns=[], rows=[],
-            chart_type=None, insight=None, suggestions=[], error=None, execution_ms=None,
+            chart_type=None, chart_config=None, insight=None, suggestions=[], error=None, execution_ms=None,
         )
 
     # Fetch datasource
@@ -92,7 +94,7 @@ async def run_pipeline(
     if ds is None:
         return PipelineResult(
             intent=intent, sql=None, columns=[], rows=[],
-            chart_type=None, insight=None, suggestions=[],
+            chart_type=None, chart_config=None, insight=None, suggestions=[],
             error="Datasource not found", execution_ms=None,
         )
 
@@ -131,7 +133,7 @@ async def run_pipeline(
     if sql is None:
         return PipelineResult(
             intent=intent, sql=None, columns=[], rows=[],
-            chart_type=None, insight=None, suggestions=[],
+            chart_type=None, chart_config=None, insight=None, suggestions=[],
             error=last_error, execution_ms=None,
         )
 
@@ -149,7 +151,7 @@ async def run_pipeline(
     except Exception as exc:
         return PipelineResult(
             intent=intent, sql=sql, columns=[], rows=[],
-            chart_type=None, insight=None, suggestions=[],
+            chart_type=None, chart_config=None, insight=None, suggestions=[],
             error=str(exc), execution_ms=None,
         )
 
@@ -160,6 +162,7 @@ async def run_pipeline(
     # Step 8: Result processing
     warnings = check_result_anomalies(columns, rows)
     chart_type = infer_chart_type(columns, rows) if rows else None
+    chart_config = build_chart_config(chart_type, columns, rows) if chart_type else None
     data_str = sanitize_for_llm(columns, rows)
 
     # Step 9: Insight + suggestions
@@ -167,7 +170,7 @@ async def run_pipeline(
 
     return PipelineResult(
         intent=intent, sql=sql, columns=columns, rows=rows,
-        chart_type=chart_type, insight=insight, suggestions=suggestions,
+        chart_type=chart_type, chart_config=chart_config, insight=insight, suggestions=suggestions,
         error=None, execution_ms=execution_ms, warnings=warnings,
     )
 

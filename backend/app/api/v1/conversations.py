@@ -148,6 +148,7 @@ async def query_conversation(
         columns=pipeline_result.columns,
         rows=pipeline_result.rows,
         chart_type=pipeline_result.chart_type,
+        chart_config=pipeline_result.chart_config,
         insight=pipeline_result.insight,
         suggestions=pipeline_result.suggestions,
         warnings=pipeline_result.warnings,

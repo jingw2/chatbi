@@ -141,6 +141,7 @@ class TestChatQuery:
             columns=["region", "qty"],
             rows=[["华东", 5000]],
             chart_type="bar",
+            chart_config={"series": [{"type": "bar"}]},
             insight="华东区出库量最高。",
             suggestions=["加大华东区库存", "优化华南区供应链"],
             error=None,
@@ -203,7 +204,7 @@ class TestChatQuery:
 
         fake_result = PipelineResult(
             intent="chitchat", sql=None, columns=[], rows=[],
-            chart_type=None, insight=None, suggestions=[],
+            chart_type=None, chart_config=None, insight=None, suggestions=[],
             error=None, execution_ms=None, warnings=[],
         )
 
