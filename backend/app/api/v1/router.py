@@ -5,6 +5,7 @@ from app.api.v1.datasources import router as datasources_router
 from app.schema_mgr.router import router as schema_router
 from app.knowledge.router import router as knowledge_router
 from app.api.v1.conversations import router as conversations_router
+from app.workflow.router import router as workflow_router
 
 api_router = APIRouter(prefix="/api/v1")
 api_router.include_router(auth_router)
@@ -13,3 +14,4 @@ api_router.include_router(datasources_router)
 api_router.include_router(schema_router)
 api_router.include_router(knowledge_router)
 api_router.include_router(conversations_router)
+api_router.include_router(workflow_router)
