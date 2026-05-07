@@ -20,6 +20,8 @@ from app.query_engine.executor import execute_query
 from app.query_engine.result_processor import sanitize_for_llm, check_result_anomalies
 from app.viz.infer import infer_chart_type
 from app.viz.config import build_chart_config
+from app.workflow.matcher import match_workflow
+from app.workflow.executor import run_workflow, WorkflowResult
 
 _VALID_INTENTS = {"data_query", "definition", "clarify", "fixed_workflow", "chitchat"}
 
@@ -54,6 +56,7 @@ class PipelineResult:
     error: str | None
     execution_ms: int | None
     warnings: list[str] = field(default_factory=list)
+    workflow_result: WorkflowResult | None = None
 
 
 async def run_pipeline(
@@ -81,6 +84,31 @@ async def run_pipeline(
     intent = intent_raw.strip().lower()
     if intent not in _VALID_INTENTS:
         intent = "data_query"
+
+    if intent == "fixed_workflow":
+        wf = await match_workflow(question, datasource_id, db)
+        if wf is None:
+            return PipelineResult(
+                intent=intent, sql=None, columns=[], rows=[],
+                chart_type=None, chart_config=None, insight=None, suggestions=[],
+                error="No matching workflow found", execution_ms=None,
+            )
+        # Fetch datasource for workflow execution
+        ds_row = await db.execute(select(Datasource).where(Datasource.id == datasource_id))
+        ds = ds_row.scalar_one_or_none()
+        if ds is None:
+            return PipelineResult(
+                intent=intent, sql=None, columns=[], rows=[],
+                chart_type=None, chart_config=None, insight=None, suggestions=[],
+                error="Datasource not found", execution_ms=None,
+            )
+        wf_result = await run_workflow(wf, ds)
+        return PipelineResult(
+            intent=intent, sql=None, columns=[], rows=[],
+            chart_type=None, chart_config=None, insight=None, suggestions=[],
+            error=None, execution_ms=wf_result.total_execution_ms,
+            workflow_result=wf_result,
+        )
 
     if intent != "data_query":
         return PipelineResult(
