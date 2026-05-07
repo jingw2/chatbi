@@ -130,3 +130,30 @@ class TestBuildChartConfigEmpty:
     def test_empty_columns_returns_none(self):
         cfg = build_chart_config("bar", [], [])
         assert cfg is None
+
+
+class TestBuildChartConfigIntegration:
+    """Test that build_chart_config + infer_chart_type work together."""
+
+    def test_infer_then_build_bar(self):
+        from app.viz.infer import infer_chart_type
+
+        columns = ["region", "sales"]
+        rows = [["华东", 1000], ["华南", 800]]
+        chart_type = infer_chart_type(columns, rows)
+        cfg = build_chart_config(chart_type, columns, rows)
+
+        assert chart_type == "bar"
+        assert cfg is not None
+        assert cfg["series"][0]["type"] == "bar"
+
+    def test_infer_then_build_table_returns_none(self):
+        from app.viz.infer import infer_chart_type
+
+        columns = ["a", "b", "c", "d"]
+        rows = [["x", 1, 2, 3]]
+        chart_type = infer_chart_type(columns, rows)
+        cfg = build_chart_config(chart_type, columns, rows)
+
+        assert chart_type == "table"
+        assert cfg is None
