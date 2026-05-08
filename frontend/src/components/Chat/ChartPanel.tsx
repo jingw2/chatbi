@@ -12,7 +12,7 @@ export default function ChartPanel({ config }: ChartPanelProps) {
         <span className="text-4xl font-bold text-gray-900">
           {String(config.value ?? "—")}
         </span>
-        {config.label && (
+        {config.label != null && (
           <span className="mt-1 text-sm text-gray-500">
             {String(config.label)}
           </span>

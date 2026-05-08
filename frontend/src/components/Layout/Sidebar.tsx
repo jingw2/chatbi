@@ -1,3 +1,4 @@
+import { useQuery } from "@tanstack/react-query";
 import {
   MessageSquare,
   Zap,
@@ -7,10 +8,21 @@ import {
   Users,
   ScrollText,
   Settings,
+  Trash2,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/lib/auth";
+import { useChatStore } from "@/stores/chat";
+import { api } from "@/lib/api";
+import { ScrollArea } from "@/components/ui/scroll-area";
+
+interface ConversationItem {
+  id: number;
+  title: string;
+  datasource_id: number;
+  updated_at: string;
+}
 
 const adminMenuItems = [
   { icon: Zap, label: "Workflows", href: "/admin/workflows" },
@@ -25,6 +37,36 @@ export default function Sidebar() {
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
+  const { conversationId, setConversationId, setDatasourceId, reset } =
+    useChatStore();
+
+  const { data: conversations } = useQuery<ConversationItem[]>({
+    queryKey: ["conversations"],
+    queryFn: async () => {
+      const { data } = await api.get("/api/v1/conversations");
+      return data;
+    },
+    refetchInterval: 30000,
+  });
+
+  const handleNewChat = () => {
+    reset();
+  };
+
+  const handleSelectConversation = (conv: ConversationItem) => {
+    reset();
+    setConversationId(conv.id);
+    setDatasourceId(conv.datasource_id);
+  };
+
+  const handleDeleteConversation = async (
+    e: React.MouseEvent,
+    convId: number
+  ) => {
+    e.stopPropagation();
+    await api.delete(`/api/v1/conversations/${convId}`);
+    if (conversationId === convId) reset();
+  };
 
   return (
     <aside className="w-64 h-screen flex flex-col border-r bg-white shrink-0">
@@ -32,6 +74,7 @@ export default function Sidebar() {
       <div className="p-3 border-b">
         <Link
           to="/"
+          onClick={handleNewChat}
           className="flex items-center gap-2 px-3 py-2 rounded-md hover:bg-gray-100 text-sm font-medium"
         >
           <MessageSquare size={16} />
@@ -39,13 +82,36 @@ export default function Sidebar() {
         </Link>
       </div>
 
-      {/* History placeholder */}
-      <div className="flex-1 overflow-y-auto p-3">
-        <p className="text-xs font-medium text-gray-400 px-3 py-2 uppercase tracking-wider">
-          History
-        </p>
-        {/* Populated in Plan 8 */}
-      </div>
+      {/* History */}
+      <ScrollArea className="flex-1">
+        <div className="p-3">
+          <p className="text-xs font-medium text-gray-400 px-3 py-2 uppercase tracking-wider">
+            History
+          </p>
+          {conversations?.map((conv) => (
+            <button
+              key={conv.id}
+              onClick={() => handleSelectConversation(conv)}
+              className={cn(
+                "group flex items-center justify-between w-full px-3 py-2 rounded-md text-sm text-left hover:bg-gray-100",
+                conversationId === conv.id && "bg-gray-100 font-medium"
+              )}
+            >
+              <span className="truncate">{conv.title}</span>
+              <Trash2
+                size={14}
+                className="shrink-0 opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500"
+                onClick={(e) => handleDeleteConversation(e, conv.id)}
+              />
+            </button>
+          ))}
+          {conversations?.length === 0 && (
+            <p className="px-3 py-2 text-xs text-gray-400">
+              No conversations yet
+            </p>
+          )}
+        </div>
+      </ScrollArea>
 
       {/* Admin Menu */}
       {isAdmin && (

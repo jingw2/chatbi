@@ -19,7 +19,7 @@ export default function WorkflowResultPanel({
 }: WorkflowResultPanelProps) {
   // workflow_result is embedded in the response but not in the typed schema yet
   // We access it via the raw response object
-  const raw = queryResponse as Record<string, unknown>;
+  const raw = queryResponse as unknown as Record<string, unknown>;
   const workflowResult = raw.workflow_result as {
     workflow_name: string;
     step_results: StepResult[];
