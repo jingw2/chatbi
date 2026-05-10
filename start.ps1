@@ -70,60 +70,91 @@ Get-Content ".env" | ForEach-Object {
     }
 }
 
-# ── Backend ─────────────────────────────────────────────────
-Write-Host "[1/3] Setting up backend..."
-Set-Location "$ScriptDir\backend"
+# ── Paths ──────────────────────────────────────────────────
+$VenvDir  = Join-Path $ScriptDir "backend\venv"
+$PythonExe = Join-Path $VenvDir "Scripts\python.exe"
+$PipExe    = Join-Path $VenvDir "Scripts\pip.exe"
 
-if (-not (Test-Path "venv")) {
-    python -m venv venv
+# ── Backend setup ──────────────────────────────────────────
+Write-Host "[1/4] Creating Python virtual environment..."
+if (-not (Test-Path $VenvDir)) {
+    python -m venv $VenvDir
+    Write-Host "       venv created."
+} else {
+    Write-Host "       venv already exists, skipping."
 }
-& "venv\Scripts\Activate.ps1"
-pip install -q -r requirements.txt 2>$null
 
-Write-Host "[2/3] Starting backend (SQLite + in-memory vectors)..."
-Set-Location $ScriptDir
-$backendJob = Start-Job -ScriptBlock {
-    Set-Location $using:ScriptDir
-    Get-Content ".env" | ForEach-Object {
-        if ($_ -match "^\s*#" -or $_ -match "^\s*$") { return }
-        $parts = $_ -split "=", 2
-        if ($parts.Count -eq 2) {
-            [Environment]::SetEnvironmentVariable($parts[0].Trim(), $parts[1].Trim(), "Process")
-        }
-    }
-    & "$using:ScriptDir\backend\venv\Scripts\python.exe" -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --app-dir backend
+Write-Host "[2/4] Installing Python dependencies..."
+$pipResult = & $PipExe install -q -r (Join-Path $ScriptDir "backend\requirements.txt") 2>&1
+# Show only if there were actual installs (not "already satisfied")
+$installed = $pipResult | Where-Object { $_ -match "Successfully installed" }
+if ($installed) {
+    Write-Host "       $installed"
+} else {
+    Write-Host "       All dependencies already installed."
 }
+
+# ── Start backend ──────────────────────────────────────────
+Write-Host "[3/4] Starting backend (SQLite + in-memory vectors)..."
+$backendProc = Start-Process -FilePath $PythonExe `
+    -ArgumentList "-m", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--app-dir", (Join-Path $ScriptDir "backend") `
+    -WorkingDirectory $ScriptDir `
+    -PassThru -NoNewWindow
+
+# Give backend a moment to start
 Start-Sleep -Seconds 3
 
-# ── Frontend ────────────────────────────────────────────────
-Write-Host "[3/3] Starting frontend..."
-Set-Location "$ScriptDir\frontend"
-if (-not (Test-Path "node_modules")) {
-    npm install --silent
-}
-$frontendJob = Start-Job -ScriptBlock {
-    Set-Location "$using:ScriptDir\frontend"
-    npm run dev
+if ($backendProc.HasExited) {
+    Write-Host "ERROR: Backend failed to start (exit code $($backendProc.ExitCode))." -ForegroundColor Red
+    Write-Host "Check your .env configuration and try running manually:" -ForegroundColor Yellow
+    Write-Host "  cd backend"
+    Write-Host "  venv\Scripts\python.exe -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    exit 1
 }
 
+# ── Frontend setup + start ─────────────────────────────────
+Write-Host "[4/4] Starting frontend..."
+Set-Location (Join-Path $ScriptDir "frontend")
+if (-not (Test-Path "node_modules")) {
+    Write-Host "       Installing npm dependencies (first run, may take a minute)..."
+    npm install --silent
+}
+$frontendProc = Start-Process -FilePath "npm" `
+    -ArgumentList "run", "dev" `
+    -WorkingDirectory (Join-Path $ScriptDir "frontend") `
+    -PassThru -NoNewWindow
+
+Set-Location $ScriptDir
+
 Write-Host ""
-Write-Host "=== ChatBI is running ==="
+Write-Host "=== ChatBI is running ===" -ForegroundColor Green
 Write-Host "  Frontend: http://localhost:5173"
 Write-Host "  Backend:  http://localhost:8000"
 Write-Host "  Login:    admin@chatbi.local / admin123"
 Write-Host ""
-Write-Host "Press Ctrl+C to stop."
+Write-Host "Press Ctrl+C to stop both services."
 
 try {
     while ($true) {
         Start-Sleep -Seconds 2
-        if ($backendJob.State -eq "Failed") {
-            Write-Host "Backend failed:" -ForegroundColor Red
-            Receive-Job $backendJob
+        if ($backendProc.HasExited) {
+            Write-Host ""
+            Write-Host "Backend process exited (code $($backendProc.ExitCode))." -ForegroundColor Red
+            break
+        }
+        if ($frontendProc.HasExited) {
+            Write-Host ""
+            Write-Host "Frontend process exited (code $($frontendProc.ExitCode))." -ForegroundColor Red
             break
         }
     }
 } finally {
-    Stop-Job $backendJob, $frontendJob -ErrorAction SilentlyContinue
-    Remove-Job $backendJob, $frontendJob -ErrorAction SilentlyContinue
+    Write-Host "Stopping services..."
+    if (-not $backendProc.HasExited)  { Stop-Process -Id $backendProc.Id  -ErrorAction SilentlyContinue }
+    if (-not $frontendProc.HasExited) { Stop-Process -Id $frontendProc.Id -ErrorAction SilentlyContinue }
+    # Also kill any child processes (uvicorn workers, node)
+    Get-Process -ErrorAction SilentlyContinue | Where-Object {
+        $_.Id -ne $PID -and ($_.ProcessName -match "python|node") -and $_.StartTime -gt (Get-Date).AddMinutes(-60)
+    } | Stop-Process -ErrorAction SilentlyContinue
+    Write-Host "Done."
 }
