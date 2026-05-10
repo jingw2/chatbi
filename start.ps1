@@ -85,8 +85,9 @@ if (-not (Test-Path $VenvDir)) {
 }
 
 Write-Host "[2/4] Installing Python dependencies..."
+$ErrorActionPreference = "Continue"
 $pipResult = & $PipExe install -q -r (Join-Path $ScriptDir "backend\requirements.txt") 2>&1
-# Show only if there were actual installs (not "already satisfied")
+$ErrorActionPreference = "Stop"
 $installed = $pipResult | Where-Object { $_ -match "Successfully installed" }
 if ($installed) {
     Write-Host "       $installed"
@@ -117,7 +118,9 @@ Write-Host "[4/4] Starting frontend..."
 Set-Location (Join-Path $ScriptDir "frontend")
 if (-not (Test-Path "node_modules")) {
     Write-Host "       Installing npm dependencies (first run, may take a minute)..."
-    npm install --silent
+    $ErrorActionPreference = "Continue"
+    npm install --silent 2>&1 | Out-Null
+    $ErrorActionPreference = "Stop"
 }
 $frontendProc = Start-Process -FilePath "npm" `
     -ArgumentList "run", "dev" `
