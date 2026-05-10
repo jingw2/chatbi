@@ -1,14 +1,23 @@
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Infrastructure
+    # Mode: "postgres" (production) or "sqlite" (lite / local dev)
+    db_mode: str = "postgres"
+
+    # Infrastructure — PostgreSQL (only used when db_mode=postgres)
     postgres_db: str = "chatbi"
     postgres_user: str = "chatbi"
     postgres_password: str = "chatbi"
+    postgres_host: str = "postgres"
     redis_password: str = "chatbi"
+
+    # Infrastructure — SQLite (only used when db_mode=sqlite)
+    sqlite_path: str = "data/chatbi.db"
 
     # Security
     secret_key: str = "dev_secret_key_change_in_production"
@@ -34,7 +43,7 @@ class Settings(BaseSettings):
     base_model_name: str = "claude-sonnet-4-6"
     base_model_base_url: str = ""
 
-    # Qdrant
+    # Qdrant (only used when db_mode=postgres)
     qdrant_url: str = "http://qdrant:6333"
 
     # Embedding models (FlagEmbedding — installed via requirements-ml.txt)
@@ -42,17 +51,27 @@ class Settings(BaseSettings):
     reranker_model_name: str = "BAAI/bge-reranker-v2-m3"
 
     @property
+    def is_lite(self) -> bool:
+        return self.db_mode == "sqlite"
+
+    @property
     def database_url(self) -> str:
+        if self.is_lite:
+            db_path = Path(self.sqlite_path)
+            db_path.parent.mkdir(parents=True, exist_ok=True)
+            return f"sqlite+aiosqlite:///{db_path}"
         return (
             f"postgresql+asyncpg://{self.postgres_user}:"
-            f"{self.postgres_password}@postgres/{self.postgres_db}"
+            f"{self.postgres_password}@{self.postgres_host}/{self.postgres_db}"
         )
 
     @property
     def database_url_sync(self) -> str:
+        if self.is_lite:
+            return f"sqlite:///{self.sqlite_path}"
         return (
             f"postgresql://{self.postgres_user}:"
-            f"{self.postgres_password}@postgres/{self.postgres_db}"
+            f"{self.postgres_password}@{self.postgres_host}/{self.postgres_db}"
         )
 
 

@@ -5,7 +5,7 @@
 
   <p>
     <a href="./README.zh-CN.md">简体中文</a> •
-    <a href="#quick-start">Quick Start</a> •
+    <a href="#quick-start-lite-mode">Quick Start</a> •
     <a href="./docs/deployment.md">Deployment Guide</a>
   </p>
 
@@ -29,13 +29,13 @@
 - **Knowledge Base** — Business rules, few-shot examples, and glossary items to guide the LLM
 - **Multi-User RBAC + RLS** — Role-based access control with row-level security injection
 - **Flexible LLM Backend** — Supports local models via vLLM and cloud APIs (OpenAI-compatible, Anthropic)
-- **On-Premise Deployment** — Single `docker compose up` command, no external dependencies
+- **Two Deployment Modes** — Lite mode (zero Docker) for dev/trial, production mode (Docker Compose) for deployment
 
 ## Architecture
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                        Frontend (React + Vite + Nginx)       │
+│                        Frontend (React + Vite)               │
 │   Chat UI · ECharts Visualization · Admin Dashboard          │
 └────────────────────────┬─────────────────────────────────────┘
                          │ REST API
@@ -51,56 +51,51 @@
 │  │ Workflow  │  │ Query      │  │ Chart    │  │ Insight  │  │
 │  │ Engine   │  │ Execution  │  │ Inference│  │ + Suggest│  │
 │  └──────────┘  └────────────┘  └──────────┘  └──────────┘  │
-└──┬─────┬──────────┬───────────────────────────────┬─────────┘
-   │     │          │                               │
-┌──▼──┐┌─▼───┐ ┌───▼───┐                     ┌────▼────┐
-│Pg16 ││Redis│ │Qdrant │                     │vLLM     │
-│     ││     │ │       │                     │(optional)│
-└─────┘└─────┘ └───────┘                     └─────────┘
+└──────────────────────────────────────────────────────────────┘
+        │                                           │
+   Lite mode:                                  Production:
+   SQLite + in-memory vectors              Pg16 + Qdrant + Redis
 ```
 
-## Quick Start
+## Quick Start (Lite Mode)
 
-### Prerequisites
-
-- Docker & Docker Compose v2
-- (Optional) NVIDIA GPU + drivers for local LLM via vLLM
-
-### 1. Clone and configure
+**No Docker needed.** Just Python 3.11+ and Node.js 18+.
 
 ```bash
-git clone https://github.com/your-github/chatbi.git
+git clone https://github.com/jingw2/chatbi.git
 cd chatbi
+
+# Linux / macOS
+chmod +x start.sh && ./start.sh
+
+# Windows
+.\start.ps1
+```
+
+On first run, the script creates `.env` with auto-generated secrets. **Edit `.env` to add your LLM API key**, then re-run.
+
+```
+Frontend: http://localhost:5173
+Backend:  http://localhost:8000
+Login:    admin@chatbi.local / admin123
+```
+
+Lite mode uses **SQLite** + **in-memory vector store** — zero external dependencies.
+
+## Production Deployment (Docker Compose)
+
+For production with PostgreSQL, Qdrant, and Redis:
+
+```bash
 cp .env.example .env
-# Edit .env — set POSTGRES_PASSWORD, REDIS_PASSWORD, SECRET_KEY, ENCRYPTION_KEY
-# Configure LLM providers (see docs/deployment.md for details)
-```
+# Edit .env: set DB_MODE=postgres, passwords, API keys
 
-### 2. Start services
-
-```bash
-# Cloud API mode (lightest — no GPU needed)
 docker compose up -d
-
-# With local LLM (requires NVIDIA GPU)
-docker compose -f docker-compose.yml -f docker-compose.vllm.yml up -d
-```
-
-### 3. Run database migrations
-
-```bash
 docker compose exec backend alembic upgrade head
-```
-
-### 4. Create the first admin user
-
-```bash
 docker compose exec backend python -m app.scripts.create_admin
 ```
 
-### 5. Open the app
-
-Visit [http://localhost:3000](http://localhost:3000) and log in with the admin credentials.
+Visit [http://localhost:3000](http://localhost:3000). See [docs/deployment.md](./docs/deployment.md) for full guide.
 
 ## Configuration
 
@@ -108,8 +103,8 @@ ChatBI uses three independently configurable LLM roles:
 
 | Role | Purpose | Recommended Model |
 |------|---------|-------------------|
-| **Intent** | Classify user questions | Qwen2.5-7B-Instruct (local) |
-| **Text-to-SQL** | Generate SQL from natural language | Qwen2.5-Coder-32B-Instruct (local) |
+| **Intent** | Classify user questions | Qwen2.5-7B-Instruct (local) or gpt-4o-mini |
+| **Text-to-SQL** | Generate SQL from natural language | Qwen2.5-Coder-32B-Instruct (local) or gpt-4o |
 | **Base** | Insights, suggestions, general responses | Claude Sonnet (cloud) |
 
 Each role supports `openai_compatible` or `anthropic` provider. See [docs/deployment.md](./docs/deployment.md) for full environment variable reference.
@@ -118,13 +113,12 @@ Each role supports `openai_compatible` or `anthropic` provider. See [docs/deploy
 
 | Layer | Technology |
 |-------|-----------|
-| Backend | Python 3.11, FastAPI, SQLAlchemy 2.0, asyncpg |
+| Backend | Python 3.11, FastAPI, SQLAlchemy 2.0, asyncpg / aiosqlite |
 | Frontend | React 19, TypeScript, Vite, Tailwind CSS, shadcn/ui |
 | State | Zustand (client), TanStack Query (server) |
 | Charts | Apache ECharts (via echarts-for-react) |
-| Database | PostgreSQL 16 |
-| Vector Store | Qdrant |
-| Cache | Redis 7 |
+| Database | PostgreSQL 16 (production) / SQLite (lite) |
+| Vector Store | Qdrant (production) / In-memory (lite) |
 | LLM | vLLM (local) / OpenAI-compatible / Anthropic |
 | Embedding | BGE-M3 + BGE-Reranker-v2-M3 (FlagEmbedding) |
 
@@ -144,4 +138,4 @@ This project is licensed under the [MIT License](./LICENSE).
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=your-github/chatbi&type=Date)](https://star-history.com/#your-github/chatbi)
+[![Star History Chart](https://api.star-history.com/svg?repos=jingw2/chatbi&type=Date)](https://star-history.com/#jingw2/chatbi)

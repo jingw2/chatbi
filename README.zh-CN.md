@@ -5,7 +5,7 @@
 
   <p>
     <a href="./README.md">English</a> •
-    <a href="#快速开始">快速开始</a> •
+    <a href="#快速开始轻量模式">快速开始</a> •
     <a href="./docs/deployment.md">部署指南</a>
   </p>
 
@@ -29,13 +29,13 @@
 - **知识库** —— 业务规则、Few-shot 示例和术语表，用于引导 LLM 生成更准确的 SQL
 - **多用户 RBAC + RLS** —— 基于角色的访问控制 + 行级安全策略自动注入
 - **灵活的 LLM 后端** —— 支持 vLLM 本地模型和云端 API（OpenAI 兼容、Anthropic）
-- **私有化部署** —— 一条 `docker compose up` 命令即可启动，无外部依赖
+- **两种部署模式** —— 轻量模式（零 Docker 依赖）用于开发试用，生产模式（Docker Compose）用于正式部署
 
 ## 架构
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│                    前端 (React + Vite + Nginx)                │
+│                    前端 (React + Vite)                        │
 │          对话 UI · ECharts 可视化 · 管理后台                   │
 └────────────────────────┬─────────────────────────────────────┘
                          │ REST API
@@ -50,56 +50,51 @@
 │  │ 工作流    │  │ 查询执行   │  │ 图表推断  │  │ 洞察建议  │  │
 │  │ 引擎     │  │           │  │          │  │          │  │
 │  └──────────┘  └────────────┘  └──────────┘  └──────────┘  │
-└──┬─────┬──────────┬───────────────────────────────┬─────────┘
-   │     │          │                               │
-┌──▼──┐┌─▼───┐ ┌───▼───┐                     ┌────▼────┐
-│Pg16 ││Redis│ │Qdrant │                     │vLLM     │
-│     ││     │ │       │                     │(可选)    │
-└─────┘└─────┘ └───────┘                     └─────────┘
+└──────────────────────────────────────────────────────────────┘
+        │                                           │
+   轻量模式:                                    生产模式:
+   SQLite + 内存向量库                       Pg16 + Qdrant + Redis
 ```
 
-## 快速开始
+## 快速开始（轻量模式）
 
-### 前置条件
-
-- Docker 和 Docker Compose v2
-- （可选）NVIDIA GPU + 驱动，用于通过 vLLM 运行本地大模型
-
-### 1. 克隆并配置
+**无需 Docker。** 只需 Python 3.11+ 和 Node.js 18+。
 
 ```bash
-git clone https://github.com/your-github/chatbi.git
+git clone https://github.com/jingw2/chatbi.git
 cd chatbi
+
+# Linux / macOS
+chmod +x start.sh && ./start.sh
+
+# Windows
+.\start.ps1
+```
+
+首次运行时，脚本会自动创建 `.env` 并生成安全密钥。**编辑 `.env` 添加你的 LLM API Key**，然后重新运行。
+
+```
+前端: http://localhost:5173
+后端: http://localhost:8000
+登录: admin@chatbi.local / admin123
+```
+
+轻量模式使用 **SQLite** + **内存向量库** —— 零外部依赖。
+
+## 生产部署（Docker Compose）
+
+使用 PostgreSQL、Qdrant 和 Redis 的生产环境：
+
+```bash
 cp .env.example .env
-# 编辑 .env —— 设置 POSTGRES_PASSWORD、REDIS_PASSWORD、SECRET_KEY、ENCRYPTION_KEY
-# 配置 LLM 提供商（详见 docs/deployment.md）
-```
+# 编辑 .env: 设置 DB_MODE=postgres、密码、API Key
 
-### 2. 启动服务
-
-```bash
-# 云端 API 模式（最轻量，无需 GPU）
 docker compose up -d
-
-# 使用本地大模型（需要 NVIDIA GPU）
-docker compose -f docker-compose.yml -f docker-compose.vllm.yml up -d
-```
-
-### 3. 执行数据库迁移
-
-```bash
 docker compose exec backend alembic upgrade head
-```
-
-### 4. 创建管理员账户
-
-```bash
 docker compose exec backend python -m app.scripts.create_admin
 ```
 
-### 5. 访问应用
-
-打开 [http://localhost:3000](http://localhost:3000)，使用管理员账户登录。
+访问 [http://localhost:3000](http://localhost:3000)。详见 [docs/deployment.md](./docs/deployment.md)。
 
 ## 配置
 
@@ -107,8 +102,8 @@ ChatBI 使用三个独立配置的 LLM 角色：
 
 | 角色 | 用途 | 推荐模型 |
 |------|------|----------|
-| **意图识别** | 分类用户问题 | Qwen2.5-7B-Instruct（本地） |
-| **Text-to-SQL** | 将自然语言转换为 SQL | Qwen2.5-Coder-32B-Instruct（本地） |
+| **意图识别** | 分类用户问题 | Qwen2.5-7B-Instruct（本地）或 gpt-4o-mini |
+| **Text-to-SQL** | 将自然语言转换为 SQL | Qwen2.5-Coder-32B-Instruct（本地）或 gpt-4o |
 | **基础模型** | 洞察、建议、通用回复 | Claude Sonnet（云端） |
 
 每个角色支持 `openai_compatible` 或 `anthropic` 提供商。完整环境变量参考请查看 [docs/deployment.md](./docs/deployment.md)。
@@ -117,13 +112,12 @@ ChatBI 使用三个独立配置的 LLM 角色：
 
 | 层级 | 技术 |
 |------|------|
-| 后端 | Python 3.11、FastAPI、SQLAlchemy 2.0、asyncpg |
+| 后端 | Python 3.11、FastAPI、SQLAlchemy 2.0、asyncpg / aiosqlite |
 | 前端 | React 19、TypeScript、Vite、Tailwind CSS、shadcn/ui |
 | 状态管理 | Zustand（客户端）、TanStack Query（服务端） |
 | 图表 | Apache ECharts（echarts-for-react） |
-| 数据库 | PostgreSQL 16 |
-| 向量存储 | Qdrant |
-| 缓存 | Redis 7 |
+| 数据库 | PostgreSQL 16（生产）/ SQLite（轻量） |
+| 向量存储 | Qdrant（生产）/ 内存（轻量） |
 | 大模型 | vLLM（本地）/ OpenAI 兼容 / Anthropic |
 | Embedding | BGE-M3 + BGE-Reranker-v2-M3（FlagEmbedding） |
 
@@ -143,4 +137,4 @@ ChatBI 使用三个独立配置的 LLM 角色：
 
 ## Star History
 
-[![Star History Chart](https://api.star-history.com/svg?repos=your-github/chatbi&type=Date)](https://star-history.com/#your-github/chatbi)
+[![Star History Chart](https://api.star-history.com/svg?repos=jingw2/chatbi&type=Date)](https://star-history.com/#jingw2/chatbi)

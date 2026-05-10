@@ -2,8 +2,9 @@
 
 ## Table of Contents
 
-- [Prerequisites](#prerequisites)
-- [Quick Start](#quick-start)
+- [Deployment Modes](#deployment-modes)
+- [Lite Mode (No Docker)](#lite-mode-no-docker)
+- [Production Mode (Docker Compose)](#production-mode-docker-compose)
 - [Environment Variables](#environment-variables)
 - [Database Migrations](#database-migrations)
 - [LLM Configuration](#llm-configuration)
@@ -13,7 +14,105 @@
 
 ---
 
-## Prerequisites
+## Deployment Modes
+
+ChatBI supports two deployment modes:
+
+| | Lite Mode | Production Mode |
+|---|-----------|-----------------|
+| **Use case** | Development, trial, small teams | Production, enterprise |
+| **Database** | SQLite (auto-created) | PostgreSQL 16 |
+| **Vector store** | In-memory (numpy) | Qdrant |
+| **Cache** | None | Redis (optional) |
+| **Prerequisites** | Python 3.11+, Node.js 18+ | Docker 24+, Docker Compose v2 |
+| **Setup time** | ~2 minutes | ~5 minutes |
+| **Data persistence** | SQLite file (`data/chatbi.db`) | Docker volumes |
+
+Switch between modes by setting `DB_MODE=sqlite` or `DB_MODE=postgres` in `.env`.
+
+---
+
+## Lite Mode (No Docker)
+
+**Zero external dependencies.** Uses SQLite for data storage and an in-memory vector store (numpy-based cosine similarity). Ideal for local development, demos, and small-scale usage.
+
+### Prerequisites
+
+| Requirement | Version |
+|-------------|---------|
+| Python | 3.11+ |
+| Node.js | 18+ |
+| LLM API key | OpenAI or Anthropic |
+
+### Quick Start
+
+```bash
+git clone https://github.com/jingw2/chatbi.git
+cd chatbi
+
+# Linux / macOS
+chmod +x start.sh && ./start.sh
+
+# Windows
+.\start.ps1
+```
+
+On first run, the script:
+1. Creates `.env` with auto-generated `SECRET_KEY` and `ENCRYPTION_KEY`
+2. Prints instructions to add your LLM API key, then exits
+3. On second run (after you edit `.env`): creates a Python venv, installs deps, starts backend + frontend
+
+```
+Frontend: http://localhost:5173
+Backend:  http://localhost:8000
+Login:    admin@chatbi.local / admin123
+```
+
+### How It Works
+
+- **Database**: SQLite file at `data/chatbi.db` (auto-created). Uses WAL mode for concurrent reads.
+- **Vector store**: In-memory numpy-based store. Data lives only while the backend is running — embeddings are re-computed on restart.
+- **Admin user**: Auto-created on first startup (email: `admin@chatbi.local`, password: `admin123`).
+- **Tables**: Auto-created from ORM metadata — no Alembic migrations needed.
+
+### Manual Start (without scripts)
+
+```bash
+# Backend
+cd backend
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+
+# Set environment variables
+export DB_MODE=sqlite
+export SQLITE_PATH=data/chatbi.db
+export SECRET_KEY=$(openssl rand -hex 32)
+export ENCRYPTION_KEY=$(openssl rand -hex 32)
+# ... add LLM API keys ...
+
+uvicorn app.main:app --host 0.0.0.0 --port 8000
+
+# Frontend (separate terminal)
+cd frontend
+npm install
+npm run dev
+```
+
+### Lite Mode Limitations
+
+- **Vector store is not persistent** — embeddings are lost on restart and must be re-indexed
+- **No horizontal scaling** — SQLite supports a single writer at a time
+- **No Redis caching** — all requests hit the database directly
+- Best for teams of 1–5 concurrent users
+
+---
+
+## Production Mode (Docker Compose)
+
+Uses PostgreSQL, Qdrant, and Redis for a fully persistent, scalable deployment.
+
+### Prerequisites
 
 | Requirement | Version |
 |-------------|---------|
@@ -21,39 +120,47 @@
 | Docker Compose | v2 (bundled with Docker Desktop) |
 | NVIDIA GPU + drivers | (optional, for vLLM) |
 
-## Quick Start
+### Quick Start
 
 ```bash
-# 1. Clone
-git clone https://github.com/your-github/chatbi.git
+git clone https://github.com/jingw2/chatbi.git
 cd chatbi
 
-# 2. Configure
+# 1. Configure
 cp .env.example .env
-# Edit .env with your passwords and API keys
+# Edit .env: set DB_MODE=postgres, passwords, API keys
 
-# 3. Start
+# 2. Start
 docker compose up -d
 
-# 4. Migrate database
+# 3. Migrate database
 docker compose exec backend alembic upgrade head
 
-# 5. Create admin user
+# 4. Create admin user
 docker compose exec backend python -m app.scripts.create_admin
 
-# 6. Visit http://localhost:3000
+# 5. Visit http://localhost:3000
 ```
 
 ## Environment Variables
 
-### Infrastructure
+### Mode Selection
+
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `DB_MODE` | No | `postgres` | `sqlite` for lite mode, `postgres` for production |
+| `SQLITE_PATH` | No | `data/chatbi.db` | SQLite database path (lite mode only) |
+
+### Infrastructure (Production Mode Only)
 
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `POSTGRES_DB` | No | `chatbi` | PostgreSQL database name |
 | `POSTGRES_USER` | No | `chatbi` | PostgreSQL username |
 | `POSTGRES_PASSWORD` | **Yes** | — | PostgreSQL password |
+| `POSTGRES_HOST` | No | `postgres` | PostgreSQL hostname |
 | `REDIS_PASSWORD` | **Yes** | — | Redis password |
+| `QDRANT_URL` | No | `http://qdrant:6333` | Qdrant vector store URL |
 
 ### Security
 
@@ -237,4 +344,32 @@ docker compose exec frontend cat /etc/nginx/conf.d/default.conf
 
 # Check backend health:
 curl http://localhost:8000/health
+```
+
+### Lite mode — backend won't start
+
+```bash
+# Check Python version (needs 3.11+):
+python --version
+
+# Verify .env has required keys:
+grep -E "^(DB_MODE|SECRET_KEY|ENCRYPTION_KEY)" .env
+
+# Check the SQLite data directory is writable:
+ls -la data/
+
+# Check health endpoint:
+curl http://localhost:8000/health
+# Should return: {"status": "ok", "mode": "lite"}
+```
+
+### Lite mode — "no such table" errors
+
+The backend auto-creates tables on startup. If you see table errors, the startup may have failed silently. Check the backend output for import errors or missing dependencies:
+
+```bash
+cd backend
+source venv/bin/activate
+pip install -r requirements.txt
+python -c "from app.core.database import Base; import app.models; print('Models OK')"
 ```

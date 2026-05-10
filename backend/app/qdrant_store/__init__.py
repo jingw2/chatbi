@@ -1,6 +1,10 @@
-from app.qdrant_store.store import QdrantStore
 from app.core.config import settings
 
-qdrant_store = QdrantStore(url=settings.qdrant_url)
+if settings.is_lite:
+    from app.qdrant_store.memory_store import InMemoryVectorStore
+    qdrant_store = InMemoryVectorStore()
+else:
+    from app.qdrant_store.store import QdrantStore
+    qdrant_store = QdrantStore(url=settings.qdrant_url)
 
-__all__ = ["QdrantStore", "qdrant_store"]
+__all__ = ["qdrant_store"]
