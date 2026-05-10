@@ -119,11 +119,11 @@ Set-Location (Join-Path $ScriptDir "frontend")
 if (-not (Test-Path "node_modules")) {
     Write-Host "       Installing npm dependencies (first run, may take a minute)..."
     $ErrorActionPreference = "Continue"
-    npm install --silent 2>&1 | Out-Null
+    & cmd.exe /c "npm install --silent" 2>&1 | Out-Null
     $ErrorActionPreference = "Stop"
 }
-$frontendProc = Start-Process -FilePath "npm" `
-    -ArgumentList "run", "dev" `
+$frontendProc = Start-Process -FilePath "cmd.exe" `
+    -ArgumentList "/c", "npm run dev" `
     -WorkingDirectory (Join-Path $ScriptDir "frontend") `
     -PassThru -NoNewWindow
 
