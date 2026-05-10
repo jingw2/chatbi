@@ -40,6 +40,7 @@ async def run_workflow(workflow, datasource) -> WorkflowResult:
                 username=datasource.readonly_user,
                 password=password,
                 sql=step_sql,
+                read_only=True,
             )
             step_results.append({
                 "name": step_name,

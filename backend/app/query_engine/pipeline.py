@@ -175,6 +175,7 @@ async def run_pipeline(
         exec_result = await execute_query(
             host=ds.host, port=ds.port, database=ds.database,
             username=ds.readonly_user, password=password, sql=sql,
+            read_only=True,
         )
     except Exception as exc:
         return PipelineResult(

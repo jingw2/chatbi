@@ -184,7 +184,11 @@ export default function KnowledgePage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => deleteMutation.mutate(item.id)}
+                    onClick={() => {
+                      if (window.confirm(`Delete "${item.title}"? This cannot be undone.`)) {
+                        deleteMutation.mutate(item.id);
+                      }
+                    }}
                   >
                     <Trash2 size={14} className="text-red-500" />
                   </Button>

@@ -179,7 +179,11 @@ export default function DatasourcesPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => deleteMutation.mutate(ds.id)}
+                    onClick={() => {
+                      if (window.confirm(`Delete datasource "${ds.name}"? This cannot be undone.`)) {
+                        deleteMutation.mutate(ds.id);
+                      }
+                    }}
                   >
                     <Trash2 size={14} className="text-red-500" />
                   </Button>

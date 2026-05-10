@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import { api } from "@/lib/api";
 import { useChatStore, type QueryResponseData } from "@/stores/chat";
 
@@ -15,9 +15,12 @@ export function useChat() {
     reset,
   } = useChatStore();
 
+  // Use a ref to guard against double-sends — immune to stale closures
+  const queryingRef = useRef(false);
+
   const sendQuestion = useCallback(
     async (question: string) => {
-      if (isQuerying) return;
+      if (queryingRef.current) return;
       if (!datasourceId) return;
 
       // Add user message immediately
@@ -28,6 +31,7 @@ export function useChat() {
         timestamp: Date.now(),
       };
       addMessage(userMsg);
+      queryingRef.current = true;
       setIsQuerying(true);
 
       try {
@@ -92,13 +96,13 @@ export function useChat() {
           timestamp: Date.now(),
         });
       } finally {
+        queryingRef.current = false;
         setIsQuerying(false);
       }
     },
     [
       conversationId,
       datasourceId,
-      isQuerying,
       addMessage,
       setConversationId,
       setIsQuerying,

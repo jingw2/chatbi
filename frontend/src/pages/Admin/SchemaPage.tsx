@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, Fragment } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -61,7 +61,7 @@ export default function SchemaPage() {
     enabled: !!dsId,
   });
 
-  const { data: columns } = useQuery<SchemaColumn[]>({
+  const { data: columns, isLoading: columnsLoading } = useQuery<SchemaColumn[]>({
     queryKey: ["schema-columns", expandedTable],
     queryFn: async () =>
       (await api.get(`/api/v1/schema/tables/${expandedTable}/columns`)).data,
@@ -139,8 +139,8 @@ export default function SchemaPage() {
           </TableHeader>
           <TableBody>
             {tables.map((tbl) => (
-              <>
-                <TableRow key={tbl.id}>
+              <Fragment key={tbl.id}>
+                <TableRow>
                   <TableCell>
                     <button
                       onClick={() =>
@@ -187,8 +187,15 @@ export default function SchemaPage() {
                     </Button>
                   </TableCell>
                 </TableRow>
-                {expandedTable === tbl.id && columns && (
-                  <TableRow key={`cols-${tbl.id}`}>
+                {expandedTable === tbl.id && columnsLoading && (
+                  <TableRow>
+                    <TableCell colSpan={4} className="bg-gray-50 p-4 text-center text-xs text-gray-400">
+                      Loading columns...
+                    </TableCell>
+                  </TableRow>
+                )}
+                {expandedTable === tbl.id && columns && !columnsLoading && (
+                  <TableRow>
                     <TableCell colSpan={4} className="bg-gray-50 p-4">
                       <table className="w-full text-xs">
                         <thead>
@@ -257,7 +264,7 @@ export default function SchemaPage() {
                     </TableCell>
                   </TableRow>
                 )}
-              </>
+              </Fragment>
             ))}
           </TableBody>
         </Table>

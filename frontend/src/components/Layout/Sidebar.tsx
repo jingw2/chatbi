@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   MessageSquare,
   Zap,
@@ -35,6 +35,7 @@ const adminMenuItems = [
 
 export default function Sidebar() {
   const location = useLocation();
+  const qc = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const isAdmin = user?.role === "admin" || user?.role === "superadmin";
   const { conversationId, setConversationId, setDatasourceId, reset } =
@@ -64,8 +65,13 @@ export default function Sidebar() {
     convId: number
   ) => {
     e.stopPropagation();
-    await api.delete(`/api/v1/conversations/${convId}`);
-    if (conversationId === convId) reset();
+    try {
+      await api.delete(`/api/v1/conversations/${convId}`);
+      qc.invalidateQueries({ queryKey: ["conversations"] });
+      if (conversationId === convId) reset();
+    } catch {
+      // Silently ignore — conversation stays visible on failure
+    }
   };
 
   return (

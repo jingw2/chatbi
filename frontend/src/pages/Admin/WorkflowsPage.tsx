@@ -259,7 +259,11 @@ export default function WorkflowsPage() {
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={() => deleteMutation.mutate(wf.id)}
+                    onClick={() => {
+                      if (window.confirm(`Delete workflow "${wf.name}"? This cannot be undone.`)) {
+                        deleteMutation.mutate(wf.id);
+                      }
+                    }}
                   >
                     <Trash2 size={14} className="text-red-500" />
                   </Button>
