@@ -25,3 +25,11 @@ class DatasourceResponse(BaseModel):
     created_by: int
 
     model_config = {"from_attributes": True}
+
+
+class DatasourceOptionResponse(BaseModel):
+    id: int
+    name: str
+    db_type: DBType
+
+    model_config = {"from_attributes": True}

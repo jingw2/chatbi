@@ -41,3 +41,11 @@ class TestInjectRls:
         result = inject_rls(sql, {"region": "华东"}, "viewer")
         assert "SELECT id, sales FROM orders" in result
         assert result.strip().upper().startswith("SELECT")
+
+    def test_scope_values_are_escaped(self):
+        result = inject_rls("SELECT * FROM orders", {"region": "O'Reilly"}, "viewer")
+        assert "O''Reilly" in result
+
+    def test_invalid_scope_key_rejected(self):
+        with pytest.raises(ValueError):
+            inject_rls("SELECT * FROM orders", {"region; DROP TABLE users": "x"}, "viewer")

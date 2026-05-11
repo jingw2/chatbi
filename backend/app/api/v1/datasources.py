@@ -5,8 +5,12 @@ from app.core.database import get_db
 from app.core.encryption import encrypt
 from app.models.datasource import Datasource
 from app.models.user import User, UserRole
-from app.schemas.datasource import DatasourceCreate, DatasourceResponse
-from app.api.deps import require_role
+from app.schemas.datasource import (
+    DatasourceCreate,
+    DatasourceOptionResponse,
+    DatasourceResponse,
+)
+from app.api.deps import get_current_user, require_role
 
 router = APIRouter(prefix="/datasources", tags=["datasources"])
 
@@ -18,6 +22,21 @@ async def list_datasources(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_role(*_admin_roles)),
 ):
+    result = await db.execute(select(Datasource))
+    return result.scalars().all()
+
+
+@router.get("/available", response_model=list[DatasourceOptionResponse])
+async def list_available_datasources(
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """Return datasources users may start chats against.
+
+    Connection details and credentials are intentionally excluded.
+    Fine-grained datasource membership can be added later; today RLS is enforced
+    at query execution time.
+    """
     result = await db.execute(select(Datasource))
     return result.scalars().all()
 

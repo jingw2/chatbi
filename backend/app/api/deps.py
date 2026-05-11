@@ -25,6 +25,8 @@ async def get_current_user(
         raise credentials_exception
     try:
         payload = decode_access_token(credentials.credentials)
+        if payload.get("type") == "refresh":
+            raise JWTError("refresh token cannot be used for API access")
         user_id: int = int(payload.get("sub"))
     except (JWTError, ValueError, TypeError):
         raise HTTPException(

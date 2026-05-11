@@ -28,7 +28,7 @@ export default function DatasourceSelector({
   const { data: datasources, isLoading } = useQuery<Datasource[]>({
     queryKey: ["datasources"],
     queryFn: async () => {
-      const { data } = await api.get("/api/v1/datasources");
+      const { data } = await api.get("/api/v1/datasources/available");
       return data;
     },
   });

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import asdict
 from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -141,6 +142,12 @@ async def query_conversation(
     await db.commit()
     await db.refresh(log)
 
+    workflow_result = (
+        asdict(pipeline_result.workflow_result)
+        if pipeline_result.workflow_result is not None
+        else None
+    )
+
     return QueryResponse(
         query_log_id=log.id,
         intent=pipeline_result.intent,
@@ -154,4 +161,5 @@ async def query_conversation(
         warnings=pipeline_result.warnings,
         error=pipeline_result.error,
         execution_ms=pipeline_result.execution_ms,
+        workflow_result=workflow_result,
     )

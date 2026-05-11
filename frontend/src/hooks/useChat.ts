@@ -92,6 +92,7 @@ export function useChat() {
             warnings: [],
             error: errorMsg,
             execution_ms: null,
+            workflow_result: null,
           },
           timestamp: Date.now(),
         });

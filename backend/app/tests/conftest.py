@@ -1,11 +1,14 @@
 import pytest_asyncio
+import os
 from httpx import AsyncClient, ASGITransport
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 from app.main import app
 from app.core.database import Base, get_db
 
-# Connect to the running Postgres service (inside Docker compose network)
-TEST_DATABASE_URL = "postgresql+asyncpg://chatbi:chatbi_dev_pass@postgres/chatbi"
+TEST_DATABASE_URL = os.getenv(
+    "TEST_DATABASE_URL",
+    "sqlite+aiosqlite:///./test_chatbi.db",
+)
 
 
 @pytest_asyncio.fixture

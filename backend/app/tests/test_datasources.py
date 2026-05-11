@@ -2,6 +2,8 @@ import pytest
 from httpx import AsyncClient
 from app.models.user import User, UserRole
 from app.core.security import hash_password, create_access_token
+from app.models.datasource import Datasource, DBType
+from app.core.encryption import encrypt
 
 
 def auth_header(user_id: int, role: str) -> dict:
@@ -89,6 +91,44 @@ async def test_list_datasources_as_admin(client: AsyncClient, db_session):
     )
     assert response.status_code == 200
     assert isinstance(response.json(), list)
+
+
+@pytest.mark.asyncio
+async def test_available_datasources_as_viewer(client: AsyncClient, db_session):
+    viewer = User(
+        email="dsviewer@example.com",
+        hashed_password=hash_password("pass"),
+        role=UserRole.viewer,
+    )
+    db_session.add(viewer)
+    await db_session.commit()
+    await db_session.refresh(viewer)
+
+    ds = Datasource(
+        name="Analytics DB",
+        db_type=DBType.postgres,
+        host="localhost",
+        port=5432,
+        database="analytics",
+        username="owner",
+        encrypted_password=encrypt("secret"),
+        readonly_user="readonly",
+        readonly_encrypted_password=encrypt("readonly_secret"),
+        created_by=viewer.id,
+    )
+    db_session.add(ds)
+    await db_session.commit()
+
+    response = await client.get(
+        "/api/v1/datasources/available",
+        headers=auth_header(viewer.id, "viewer"),
+    )
+    assert response.status_code == 200
+    data = response.json()
+    assert data[0]["name"] == "Analytics DB"
+    assert "host" not in data[0]
+    assert "username" not in data[0]
+    assert "encrypted_password" not in data[0]
 
 
 @pytest.mark.asyncio

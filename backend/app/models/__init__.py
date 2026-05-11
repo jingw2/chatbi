@@ -7,6 +7,7 @@ from app.models.schema_table import SchemaTable
 from app.models.schema_column import SchemaColumn
 from app.models.knowledge_item import KnowledgeItem, KnowledgeType
 from app.models.workflow import Workflow
+from app.models.model_setting import ModelProvider, ModelRole, ModelSetting
 
 __all__ = [
     "User", "UserRole", "UserDataScope",
@@ -15,4 +16,5 @@ __all__ = [
     "SchemaTable", "SchemaColumn",
     "KnowledgeItem", "KnowledgeType",
     "Workflow",
+    "ModelProvider", "ModelRole", "ModelSetting",
 ]

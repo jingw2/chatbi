@@ -5,6 +5,8 @@ from dataclasses import dataclass, field
 
 from app.core.encryption import decrypt
 from app.query_engine.executor import execute_query
+from app.query_engine.rls import inject_rls
+from app.query_engine.sql_validator import validate_sql
 
 
 @dataclass
@@ -15,7 +17,13 @@ class WorkflowResult:
     error: str | None
 
 
-async def run_workflow(workflow, datasource) -> WorkflowResult:
+async def run_workflow(
+    workflow,
+    datasource,
+    allowed_tables: set[str] | None = None,
+    scopes: dict[str, str] | None = None,
+    role: str = "viewer",
+) -> WorkflowResult:
     """Execute all steps in a workflow definition sequentially.
 
     Each step has {"name": str, "sql": str}. Steps are executed in order
@@ -33,6 +41,11 @@ async def run_workflow(workflow, datasource) -> WorkflowResult:
         step_sql = step.get("sql", "")
 
         try:
+            ok, err = validate_sql(step_sql, allowed_tables or set())
+            if not ok:
+                raise ValueError(f"SQL validation failed: {err}")
+
+            step_sql = inject_rls(step_sql, scopes or {}, role)
             exec_result = await execute_query(
                 host=datasource.host,
                 port=datasource.port,
@@ -40,6 +53,7 @@ async def run_workflow(workflow, datasource) -> WorkflowResult:
                 username=datasource.readonly_user,
                 password=password,
                 sql=step_sql,
+                db_type=datasource.db_type.value,
                 read_only=True,
             )
             step_results.append({

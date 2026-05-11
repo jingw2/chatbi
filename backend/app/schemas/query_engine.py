@@ -28,6 +28,21 @@ class QueryRequest(BaseModel):
     question: str
 
 
+class WorkflowStepResult(BaseModel):
+    name: str
+    columns: list[str]
+    rows: list[list]
+    execution_ms: int
+    error: str | None
+
+
+class WorkflowResultResponse(BaseModel):
+    workflow_name: str
+    step_results: list[WorkflowStepResult]
+    total_execution_ms: int
+    error: str | None
+
+
 class QueryResponse(BaseModel):
     query_log_id: int
     intent: str
@@ -41,3 +56,4 @@ class QueryResponse(BaseModel):
     warnings: list[str]
     error: str | None
     execution_ms: int | None
+    workflow_result: WorkflowResultResponse | None = None

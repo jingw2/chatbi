@@ -19,6 +19,7 @@ build/
 # Environment
 .env*
 !.env.example
+data/*.db
 
 # Node
 node_modules/

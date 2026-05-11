@@ -22,6 +22,18 @@ export interface QueryResponseData {
   warnings: string[];
   error: string | null;
   execution_ms: number | null;
+  workflow_result?: {
+    workflow_name: string;
+    step_results: {
+      name: string;
+      columns: string[];
+      rows: unknown[][];
+      execution_ms: number;
+      error: string | null;
+    }[];
+    total_execution_ms: number;
+    error: string | null;
+  } | null;
 }
 
 interface ChatState {

@@ -10,6 +10,7 @@ import KnowledgePage from "@/pages/Admin/KnowledgePage";
 import WorkflowsPage from "@/pages/Admin/WorkflowsPage";
 import UsersPage from "@/pages/Admin/UsersPage";
 import AuditPage from "@/pages/Admin/AuditPage";
+import ModelSettingsPage from "@/pages/Admin/ModelSettingsPage";
 
 const queryClient = new QueryClient();
 
@@ -66,6 +67,10 @@ export default function App() {
             <Route
               path="admin/audit"
               element={<AdminRoute><AuditPage /></AdminRoute>}
+            />
+            <Route
+              path="admin/model-settings"
+              element={<AdminRoute><ModelSettingsPage /></AdminRoute>}
             />
           </Route>
         </Routes>

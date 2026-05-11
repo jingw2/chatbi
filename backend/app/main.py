@@ -26,7 +26,7 @@ async def lifespan(app: FastAPI):
 
         async with AsyncSessionLocal() as db:
             result = await db.execute(
-                select(User).where(User.role == UserRole.superadmin).limit(1)
+                select(User).where(User.email == "admin@chatbi.local").limit(1)
             )
             if not result.scalar_one_or_none():
                 db.add(User(
@@ -49,7 +49,12 @@ app = FastAPI(title="ChatBI API", version="0.1.0", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

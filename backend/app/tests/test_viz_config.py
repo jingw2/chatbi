@@ -31,7 +31,7 @@ class TestBuildChartConfigLine:
         assert len(cfg["series"]) == 2
         series_names = {s["name"] for s in cfg["series"]}
         assert series_names == {"华东", "华南"}
-        assert cfg["legend"]["data"] == list(series_names)
+        assert set(cfg["legend"]["data"]) == series_names
 
     def test_line_has_tooltip(self):
         cfg = build_chart_config("line", ["month", "val"], [["Jan", 1]])

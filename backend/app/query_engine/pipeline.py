@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from inspect import isawaitable
 
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -79,20 +80,28 @@ async def run_pipeline(
     8. Result processing (anomaly check + chart inference)
     9. Insight + decision suggestions (LLM)
     """
+    reload_result = llm_gateway.reload_from_db(db)
+    if isawaitable(reload_result):
+        await reload_result
+
     # Step 1: Intent
     intent_raw = await llm_gateway.intent(question, system=_INTENT_SYSTEM)
     intent = intent_raw.strip().lower()
     if intent not in _VALID_INTENTS:
         intent = "data_query"
 
-    if intent == "fixed_workflow":
+    wf = None
+    if intent in {"data_query", "fixed_workflow"}:
         wf = await match_workflow(question, datasource_id, db)
-        if wf is None:
-            return PipelineResult(
-                intent=intent, sql=None, columns=[], rows=[],
-                chart_type=None, chart_config=None, insight=None, suggestions=[],
-                error="No matching workflow found", execution_ms=None,
-            )
+
+    if intent == "fixed_workflow" and wf is None:
+        return PipelineResult(
+            intent=intent, sql=None, columns=[], rows=[],
+            chart_type=None, chart_config=None, insight=None, suggestions=[],
+            error="No matching workflow found", execution_ms=None,
+        )
+
+    if wf is not None:
         # Fetch datasource for workflow execution
         ds_row = await db.execute(select(Datasource).where(Datasource.id == datasource_id))
         ds = ds_row.scalar_one_or_none()
@@ -102,9 +111,17 @@ async def run_pipeline(
                 chart_type=None, chart_config=None, insight=None, suggestions=[],
                 error="Datasource not found", execution_ms=None,
             )
-        wf_result = await run_workflow(wf, ds)
+        allowed_tables = await _get_allowed_tables(datasource_id, db)
+        scopes = await _get_user_scopes(user.id, db)
+        wf_result = await run_workflow(
+            wf,
+            ds,
+            allowed_tables=allowed_tables,
+            scopes=scopes,
+            role=user.role.value,
+        )
         return PipelineResult(
-            intent=intent, sql=None, columns=[], rows=[],
+            intent="fixed_workflow", sql=None, columns=[], rows=[],
             chart_type=None, chart_config=None, insight=None, suggestions=[],
             error=None, execution_ms=wf_result.total_execution_ms,
             workflow_result=wf_result,
@@ -133,15 +150,7 @@ async def run_pipeline(
     # Step 4: Prompt construction
     prompt = build_text_to_sql_prompt(question, schema_cols, knowledge_items)
 
-    # Fetch allowed table names for SQL validation
-    from app.models.schema_table import SchemaTable  # local import to avoid circular
-    tbl_rows = await db.execute(
-        select(SchemaTable.table_name).where(
-            SchemaTable.datasource_id == datasource_id,
-            SchemaTable.is_active.is_(True),
-        )
-    )
-    allowed_tables = {row[0] for row in tbl_rows.all()}
+    allowed_tables = await _get_allowed_tables(datasource_id, db)
 
     # Step 5: SQL generation + validation (retry loop)
     sql: str | None = None
@@ -225,6 +234,18 @@ async def _get_user_scopes(user_id: int, db: AsyncSession) -> dict[str, str]:
         select(UserDataScope).where(UserDataScope.user_id == user_id)
     )
     return {s.scope_key: s.scope_value for s in result.scalars().all()}
+
+
+async def _get_allowed_tables(datasource_id: int, db: AsyncSession) -> set[str]:
+    from app.models.schema_table import SchemaTable  # local import to avoid circular
+
+    tbl_rows = await db.execute(
+        select(SchemaTable.table_name).where(
+            SchemaTable.datasource_id == datasource_id,
+            SchemaTable.is_active.is_(True),
+        )
+    )
+    return {row[0] for row in tbl_rows.all()}
 
 
 async def _generate_insight(

@@ -44,6 +44,45 @@ class TestRunWorkflow:
         assert result.error is None
 
     @pytest.mark.asyncio
+    async def test_invalid_step_sql_is_rejected_before_execution(self):
+        wf = self._make_workflow([
+            {"name": "bad", "sql": "DROP TABLE orders"},
+        ])
+        ds = self._make_datasource()
+
+        with patch("app.workflow.executor.execute_query", new_callable=AsyncMock) as mock_exec, \
+             patch("app.workflow.executor.decrypt", return_value="plain"):
+            result = await run_workflow(wf, ds, allowed_tables={"orders"})
+
+        mock_exec.assert_not_called()
+        assert "SQL validation failed" in result.step_results[0]["error"]
+
+    @pytest.mark.asyncio
+    async def test_rls_injected_into_workflow_step(self):
+        wf = self._make_workflow([
+            {"name": "scoped", "sql": "SELECT * FROM orders"},
+        ])
+        ds = self._make_datasource()
+
+        with patch("app.workflow.executor.execute_query", new_callable=AsyncMock) as mock_exec, \
+             patch("app.workflow.executor.decrypt", return_value="plain"):
+            mock_exec.return_value = {
+                "columns": ["id"],
+                "rows": [[1]],
+                "execution_ms": 10,
+            }
+            await run_workflow(
+                wf,
+                ds,
+                allowed_tables={"orders"},
+                scopes={"region": "华东"},
+                role="viewer",
+            )
+
+        assert "_chatbi_rls" in mock_exec.call_args.kwargs["sql"]
+        assert "华东" in mock_exec.call_args.kwargs["sql"]
+
+    @pytest.mark.asyncio
     async def test_multi_step_returns_all_results(self):
         wf = self._make_workflow([
             {"name": "华东销售", "sql": "SELECT SUM(sales) FROM orders WHERE region='华东'"},
@@ -74,7 +113,7 @@ class TestRunWorkflow:
     async def test_step_failure_records_error_and_continues(self):
         wf = self._make_workflow([
             {"name": "good_step", "sql": "SELECT 1"},
-            {"name": "bad_step", "sql": "INVALID SQL"},
+            {"name": "bad_step", "sql": "SELECT 999"},
             {"name": "after_bad", "sql": "SELECT 2"},
         ])
         ds = self._make_datasource()

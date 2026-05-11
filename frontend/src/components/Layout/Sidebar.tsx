@@ -8,6 +8,7 @@ import {
   Users,
   ScrollText,
   Settings,
+  SlidersHorizontal,
   Trash2,
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
@@ -29,6 +30,7 @@ const adminMenuItems = [
   { icon: Database, label: "Datasources", href: "/admin/datasources" },
   { icon: Table, label: "Schema", href: "/admin/schema" },
   { icon: BookOpen, label: "Knowledge", href: "/admin/knowledge" },
+  { icon: SlidersHorizontal, label: "Models", href: "/admin/model-settings" },
   { icon: Users, label: "Users", href: "/admin/users" },
   { icon: ScrollText, label: "Audit", href: "/admin/audit" },
 ];

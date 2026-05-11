@@ -6,25 +6,10 @@ interface WorkflowResultPanelProps {
   queryResponse: QueryResponseData;
 }
 
-interface StepResult {
-  name: string;
-  columns: string[];
-  rows: unknown[][];
-  execution_ms: number;
-  error: string | null;
-}
-
 export default function WorkflowResultPanel({
   queryResponse,
 }: WorkflowResultPanelProps) {
-  // workflow_result is embedded in the response but not in the typed schema yet
-  // We access it via the raw response object
-  const raw = queryResponse as unknown as Record<string, unknown>;
-  const workflowResult = raw.workflow_result as {
-    workflow_name: string;
-    step_results: StepResult[];
-    total_execution_ms: number;
-  } | undefined;
+  const workflowResult = queryResponse.workflow_result;
 
   if (!workflowResult) return null;
 
