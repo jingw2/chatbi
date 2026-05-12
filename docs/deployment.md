@@ -1,5 +1,7 @@
 # ChatBI Deployment Guide
 
+简体中文: [deployment.zh-CN.md](./deployment.zh-CN.md)
+
 ## Table of Contents
 
 - [Deployment Modes](#deployment-modes)

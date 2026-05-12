@@ -42,20 +42,35 @@
 ┌────────────────────────▼─────────────────────────────────────┐
 │                      Backend (FastAPI)                        │
 │                                                              │
-│  ┌─────────┐  ┌────────────┐  ┌──────────┐  ┌────────────┐ │
-│  │ Intent   │→│ Schema +    │→│ Text-to- │→│ Validation │  │
-│  │ Classify │  │ Knowledge  │  │ SQL Gen  │  │ + RLS      │  │
-│  └─────────┘  │ Retrieval  │  └──────────┘  └────────────┘  │
-│               └────────────┘        │                        │
-│  ┌──────────┐  ┌────────────┐  ┌────▼──────┐  ┌──────────┐ │
-│  │ Workflow  │  │ Query      │  │ Chart    │  │ Insight  │  │
-│  │ Engine   │  │ Execution  │  │ Inference│  │ + Suggest│  │
-│  └──────────┘  └────────────┘  └──────────┘  └──────────┘  │
+│  ┌─────────┐     data_query      ┌────────────┐ ┌─────────┐│
+│  │ Intent  │────────────────────▶│ Schema +   │▶│ Text-to ││
+│  │ Router  │                     │ Knowledge  │ │ SQL Gen ││
+│  └────┬────┘                     └────────────┘ └────┬────┘│
+│       │ fixed_workflow                                 │     │
+│       ▼                                                ▼     │
+│  ┌──────────┐                                  ┌────────────┐│
+│  │ Workflow │                                  │ Validation ││
+│  │ Engine   │                                  │ + RLS      ││
+│  └────┬─────┘                                  └─────┬──────┘│
+│       │ definition / clarify / chitchat / search      │     │
+│       └──────────────▶ Early non-SQL response          ▼     │
+│                                                    ┌────────┐│
+│  ┌────────────┐  ┌────────────┐  ┌──────────┐     │ Query  ││
+│  │ Audit Log  │  │ Chart      │  │ Insight  │◀────│ Exec   ││
+│  │            │  │ Inference  │  │ + Suggest│     └────────┘│
+│  └────────────┘  └────────────┘  └──────────┘               │
 └──────────────────────────────────────────────────────────────┘
         │                                           │
    Lite mode:                                  Production:
    SQLite + in-memory vectors              Pg16 + Qdrant + Redis
 ```
+
+The intent router decides whether a message needs SQL. Business data questions
+go through schema/knowledge retrieval, SQL generation, validation, row-level
+security, execution, chart inference, and insight generation. Fixed report
+requests can bypass generation and run a configured workflow. Definition,
+clarification, chitchat, and search-style requests stop before Text-to-SQL, so
+they do not generate SQL or query the business datasource.
 
 ## Quick Start (Lite Mode)
 
@@ -95,7 +110,7 @@ docker compose exec backend alembic upgrade head
 docker compose exec backend python -m app.scripts.create_admin
 ```
 
-Visit [http://localhost:3000](http://localhost:3000). See [docs/deployment.md](./docs/deployment.md) for full guide.
+Visit [http://localhost:3000](http://localhost:3000). See [docs/deployment.md](./docs/deployment.md) for the full guide. Chinese version: [docs/deployment.zh-CN.md](./docs/deployment.zh-CN.md).
 
 ## Configuration
 
