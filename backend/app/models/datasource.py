@@ -10,6 +10,7 @@ class DBType(str, enum.Enum):
     mysql = "mysql"
     clickhouse = "clickhouse"
     doris = "doris"
+    sqlite = "sqlite"
 
 
 class Datasource(Base):

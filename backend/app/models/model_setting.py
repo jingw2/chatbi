@@ -15,8 +15,14 @@ class ModelRole(str, enum.Enum):
 
 class ModelProvider(str, enum.Enum):
     openai = "openai"
-    openai_compatible = "openai_compatible"
     anthropic = "anthropic"
+    deepseek = "deepseek"
+    qwen = "qwen"
+    kimi = "kimi"
+    glm = "glm"
+    minimax = "minimax"
+    gemini = "gemini"
+    openai_compatible = "openai_compatible"  # generic / local vLLM
 
 
 class ModelSetting(Base):

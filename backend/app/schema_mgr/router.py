@@ -18,7 +18,7 @@ from app.schemas.schema_mgr import (
 )
 from app.models.datasource import Datasource
 from app.core.encryption import decrypt
-from app.schema_mgr.introspect import introspect_postgres, check_db_type_supported
+from app.schema_mgr.introspect import introspect_postgres, introspect_sqlite, check_db_type_supported
 from app.api.deps import require_role
 from app.embedding import embedding_service
 from app.qdrant_store import qdrant_store
@@ -170,14 +170,17 @@ async def sync_schema(
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
 
-    password = decrypt(ds.readonly_encrypted_password)
-    raw_tables = await introspect_postgres(
-        host=ds.host,
-        port=ds.port,
-        database=ds.database,
-        username=ds.readonly_user,
-        password=password,
-    )
+    if ds.db_type.value == "sqlite":
+        raw_tables = await introspect_sqlite(ds.database)
+    else:
+        password = decrypt(ds.readonly_encrypted_password)
+        raw_tables = await introspect_postgres(
+            host=ds.host,
+            port=ds.port,
+            database=ds.database,
+            username=ds.readonly_user,
+            password=password,
+        )
 
     tables_synced = 0
     columns_synced = 0
@@ -231,33 +234,39 @@ async def sync_schema(
 
     await db.commit()
 
-    # Batch embed and upsert to Qdrant
+    # Batch embed and upsert to Qdrant (skipped when FlagEmbedding is not installed)
     embeddings_queued = 0
     if texts_to_embed:
-        vectors = await asyncio.get_running_loop().run_in_executor(
-            None, lambda: embedding_service.embed(texts_to_embed)
-        )
-        await qdrant_store.ensure_collection(_SCHEMA_COLLECTION)
-        await qdrant_store.upsert(
-            _SCHEMA_COLLECTION,
-            [
-                {
-                    "id": col.embedding_id,
-                    "vector": vectors[i],
-                    "payload": {
-                        "datasource_id": datasource_id,
-                        "table_id": col.table_id,
-                        "column_id": col.id,
-                        "table_name": table_name_map[col.id],
-                        "column_name": col.column_name,
-                        "data_type": col.data_type,
-                        "description": col.description,
-                    },
-                }
-                for i, col in enumerate(cols_to_embed)
-            ],
-        )
-        embeddings_queued = len(texts_to_embed)
+        try:
+            vectors = await asyncio.get_running_loop().run_in_executor(
+                None, lambda: embedding_service.embed(texts_to_embed)
+            )
+            await qdrant_store.ensure_collection(_SCHEMA_COLLECTION)
+            await qdrant_store.upsert(
+                _SCHEMA_COLLECTION,
+                [
+                    {
+                        "id": col.embedding_id,
+                        "vector": vectors[i],
+                        "payload": {
+                            "datasource_id": datasource_id,
+                            "table_id": col.table_id,
+                            "column_id": col.id,
+                            "table_name": table_name_map[col.id],
+                            "column_name": col.column_name,
+                            "data_type": col.data_type,
+                            "description": col.description,
+                        },
+                    }
+                    for i, col in enumerate(cols_to_embed)
+                ],
+            )
+            embeddings_queued = len(texts_to_embed)
+        except ImportError:
+            logging.getLogger(__name__).warning(
+                "FlagEmbedding not installed — schema sync skipped embedding. "
+                "Install requirements-ml.txt for vector search."
+            )
 
     return SyncResponse(
         tables_synced=tables_synced,

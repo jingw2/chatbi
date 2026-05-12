@@ -133,6 +133,6 @@ async def test_model_setting(
             max_tokens=16,
             temperature=0.0,
         )
-        return ModelSettingTestResponse(ok=True, message=result.strip() or "ok")
+        return ModelSettingTestResponse(ok=True, message=(result or "").strip() or "ok")
     except Exception as exc:
         raise HTTPException(status_code=400, detail=str(exc))

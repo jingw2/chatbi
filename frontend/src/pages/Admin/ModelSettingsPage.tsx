@@ -16,7 +16,16 @@ import {
 } from "@/components/ui/select";
 
 type ModelRole = "intent" | "text_to_sql" | "base";
-type ModelProvider = "openai" | "openai_compatible" | "anthropic";
+type ModelProvider =
+  | "openai"
+  | "anthropic"
+  | "deepseek"
+  | "qwen"
+  | "kimi"
+  | "glm"
+  | "minimax"
+  | "gemini"
+  | "openai_compatible";
 
 interface ModelSetting {
   role: ModelRole;
@@ -51,9 +60,36 @@ const roleLabels: Record<ModelRole, { title: string; detail: string }> = {
 };
 
 const providerLabels: Record<ModelProvider, string> = {
-  openai: "OpenAI",
+  openai:            "OpenAI",
+  anthropic:         "Anthropic (Claude)",
+  deepseek:          "DeepSeek",
+  qwen:              "Qwen (Alibaba)",
+  kimi:              "Kimi (Moonshot)",
+  glm:               "GLM (Zhipu)",
+  minimax:           "MiniMax / MiMo",
+  gemini:            "Gemini (Google)",
   openai_compatible: "OpenAI Compatible / vLLM",
-  anthropic: "Anthropic",
+};
+
+const PROVIDER_DEFAULT_BASE_URLS: Partial<Record<ModelProvider, string>> = {
+  deepseek: "https://api.deepseek.com/v1",
+  qwen:     "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  kimi:     "https://api.moonshot.cn/v1",
+  glm:      "https://open.bigmodel.cn/api/paas/v4",
+  minimax:  "https://api.minimax.chat/v1",
+  gemini:   "https://generativelanguage.googleapis.com/v1beta/openai/",
+};
+
+const PROVIDER_MODEL_PLACEHOLDER: Partial<Record<ModelProvider, string>> = {
+  openai:            "gpt-4o-mini",
+  anthropic:         "claude-sonnet-4-6",
+  deepseek:          "deepseek-chat",
+  qwen:              "qwen-plus",
+  kimi:              "moonshot-v1-8k",
+  glm:               "glm-4-flash",
+  minimax:           "MiniMax-Text-01",
+  gemini:            "gemini-1.5-flash",
+  openai_compatible: "your-model-name",
 };
 
 function toForm(setting: ModelSetting): ModelForm {
@@ -143,11 +179,14 @@ export default function ModelSettingsPage() {
   const updateForm = (role: ModelRole, patch: Partial<ModelForm>) => {
     const setting = settingsByRole.get(role);
     if (!setting) return;
-    setForms((current) => ({
-      ...current,
-      [role]: { ...(current[role] ?? toForm(setting)), ...patch },
-    }));
-    setResults((current) => ({ ...current, [role]: undefined }));
+    const current = forms[role] ?? toForm(setting);
+    const next = { ...current, ...patch };
+    // Auto-fill base URL when provider changes (only if user hasn't typed a custom one)
+    if (patch.provider && patch.provider !== current.provider) {
+      next.base_url = PROVIDER_DEFAULT_BASE_URLS[patch.provider] ?? "";
+    }
+    setForms((prev) => ({ ...prev, [role]: next }));
+    setResults((prev) => ({ ...prev, [role]: undefined }));
   };
 
   const resetForm = (role: ModelRole) => {
@@ -215,11 +254,9 @@ export default function ModelSettingsPage() {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="openai">{providerLabels.openai}</SelectItem>
-                        <SelectItem value="openai_compatible">
-                          {providerLabels.openai_compatible}
-                        </SelectItem>
-                        <SelectItem value="anthropic">{providerLabels.anthropic}</SelectItem>
+                        {(Object.keys(providerLabels) as ModelProvider[]).map((p) => (
+                          <SelectItem key={p} value={p}>{providerLabels[p]}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -229,7 +266,7 @@ export default function ModelSettingsPage() {
                     <Input
                       value={form.model_name}
                       onChange={(event) => updateForm(role, { model_name: event.target.value })}
-                      placeholder="gpt-4o-mini"
+                      placeholder={PROVIDER_MODEL_PLACEHOLDER[form.provider] ?? "model-name"}
                     />
                   </div>
 

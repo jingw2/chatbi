@@ -25,9 +25,12 @@ async def retrieve_knowledge(
     Returns list of dicts with keys: id, type, title, content
     Returns [] if no embeddings exist for the datasource.
     """
-    query_vector = await asyncio.get_running_loop().run_in_executor(
-        None, lambda: embedding_service.embed([query])[0]
-    )
+    try:
+        query_vector = await asyncio.get_running_loop().run_in_executor(
+            None, lambda: embedding_service.embed([query])[0]
+        )
+    except ImportError:
+        return []
 
     hits = await qdrant_store.search(
         _KB_COLLECTION,

@@ -78,6 +78,8 @@ export default function DatasourcesPage() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["datasources"] }),
   });
 
+  const isSQLite = form.db_type === "sqlite";
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     createMutation.mutate(form);
@@ -110,43 +112,58 @@ export default function DatasourcesPage() {
                     <SelectItem value="postgres">PostgreSQL</SelectItem>
                     <SelectItem value="mysql">MySQL</SelectItem>
                     <SelectItem value="clickhouse">ClickHouse</SelectItem>
+                    <SelectItem value="sqlite">SQLite</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-              <div className="grid grid-cols-3 gap-2">
-                <div className="col-span-2 space-y-1">
-                  <Label>Host</Label>
-                  <Input value={form.host} onChange={(e) => setForm({ ...form, host: e.target.value })} required />
-                </div>
+              {isSQLite ? (
                 <div className="space-y-1">
-                  <Label>Port</Label>
-                  <Input type="number" value={form.port} onChange={(e) => setForm({ ...form, port: e.target.value })} required />
+                  <Label>Database File Path</Label>
+                  <Input
+                    value={form.database}
+                    onChange={(e) => setForm({ ...form, database: e.target.value })}
+                    placeholder="/absolute/path/to/file.sqlite"
+                    required
+                  />
                 </div>
-              </div>
-              <div className="space-y-1">
-                <Label>Database</Label>
-                <Input value={form.database} onChange={(e) => setForm({ ...form, database: e.target.value })} required />
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label>Username</Label>
-                  <Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
-                </div>
-                <div className="space-y-1">
-                  <Label>Password</Label>
-                  <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
-                </div>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                <div className="space-y-1">
-                  <Label>Read-only User</Label>
-                  <Input value={form.readonly_user} onChange={(e) => setForm({ ...form, readonly_user: e.target.value })} required />
-                </div>
-                <div className="space-y-1">
-                  <Label>Read-only Password</Label>
-                  <Input type="password" value={form.readonly_password} onChange={(e) => setForm({ ...form, readonly_password: e.target.value })} required />
-                </div>
-              </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="col-span-2 space-y-1">
+                      <Label>Host</Label>
+                      <Input value={form.host} onChange={(e) => setForm({ ...form, host: e.target.value })} required />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Port</Label>
+                      <Input type="number" value={form.port} onChange={(e) => setForm({ ...form, port: e.target.value })} required />
+                    </div>
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Database</Label>
+                    <Input value={form.database} onChange={(e) => setForm({ ...form, database: e.target.value })} required />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label>Username</Label>
+                      <Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} required />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Password</Label>
+                      <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} required />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-1">
+                      <Label>Read-only User</Label>
+                      <Input value={form.readonly_user} onChange={(e) => setForm({ ...form, readonly_user: e.target.value })} required />
+                    </div>
+                    <div className="space-y-1">
+                      <Label>Read-only Password</Label>
+                      <Input type="password" value={form.readonly_password} onChange={(e) => setForm({ ...form, readonly_password: e.target.value })} required />
+                    </div>
+                  </div>
+                </>
+              )}
               <Button type="submit" className="w-full" disabled={createMutation.isPending}>
                 {createMutation.isPending ? "Creating..." : "Create"}
               </Button>

@@ -27,9 +27,13 @@ async def retrieve_schema(
     Returns empty list if no embeddings exist for the datasource.
     """
     # 1. Embed the query (offloaded — FlagEmbedding is synchronous)
-    query_vector = await asyncio.get_running_loop().run_in_executor(
-        None, lambda: embedding_service.embed([query])[0]
-    )
+    try:
+        query_vector = await asyncio.get_running_loop().run_in_executor(
+            None, lambda: embedding_service.embed([query])[0]
+        )
+    except ImportError:
+        # FlagEmbedding not installed — fall back to returning all active columns
+        return await _retrieve_schema_fallback(datasource_id, db)
 
     # 2. Search Qdrant — top-20 candidates
     hits = await qdrant_store.search(
@@ -74,4 +78,28 @@ async def retrieve_schema(
         }
         for cid in top_column_ids
         if cid in col_map
+    ]
+
+
+async def _retrieve_schema_fallback(datasource_id: int, db: AsyncSession) -> list[dict]:
+    """Return all active columns when vector search is unavailable."""
+    rows = await db.execute(
+        select(SchemaColumn, SchemaTable)
+        .join(SchemaTable, SchemaColumn.table_id == SchemaTable.id)
+        .where(
+            SchemaTable.datasource_id == datasource_id,
+            SchemaTable.is_active.is_(True),
+        )
+        .order_by(SchemaTable.table_name, SchemaColumn.column_name)
+    )
+    return [
+        {
+            "table_name": tbl.table_name,
+            "column_name": col.column_name,
+            "data_type": col.data_type,
+            "description": col.description,
+            "example_values": col.example_values,
+            "notes": col.notes,
+        }
+        for col, tbl in rows.all()
     ]

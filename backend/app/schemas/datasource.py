@@ -5,13 +5,13 @@ from app.models.datasource import DBType
 class DatasourceCreate(BaseModel):
     name: str
     db_type: DBType
-    host: str
-    port: int
     database: str
-    username: str
-    password: str
-    readonly_user: str
-    readonly_password: str
+    host: str = ""
+    port: int = 0
+    username: str = ""
+    password: str = ""
+    readonly_user: str = ""
+    readonly_password: str = ""
 
 
 class DatasourceResponse(BaseModel):
